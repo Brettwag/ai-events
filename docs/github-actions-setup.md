@@ -57,6 +57,7 @@ It currently supports:
 
 - manual runs with `workflow_dispatch`
 - daily scheduled runs via cron
+- review-sheet initialization when Google secrets are present
 
 ## Step 6: Verify the first run
 
@@ -65,13 +66,13 @@ It currently supports:
 3. Open `Daily Phase 1 Ingestion`.
 4. Run it manually once.
 5. Confirm the workflow loads config correctly.
-6. After Sheets integration is added, confirm that the review tab receives rows.
+6. Confirm that the review tab is created and has the expected header row.
+7. After event discovery is added, confirm that the review tab receives rows.
 
 ## Recommended next implementation
 
 After the repo is on GitHub, the next code step should be:
 
-1. connect Google Sheets write access
-2. preserve `review_status` across reruns
-3. add first-pass source fetching for the three pilot sources
-
+1. add first-pass source fetching for the three pilot sources
+2. write discovered events into the review queue
+3. preserve `review_status` across reruns, which the queue layer now supports

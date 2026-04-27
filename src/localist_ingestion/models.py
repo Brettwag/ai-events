@@ -66,3 +66,33 @@ class EventCandidate:
     review_status: str = "Pending"
     reviewer_notes: str = ""
     approved_for_export: bool = False
+
+    def to_sheet_record(self, run_date: str) -> dict[str, str]:
+        return {
+            "event_id": self.event_id,
+            "run_date": run_date,
+            "source_id": self.source_id,
+            "source_organization": self.source_organization,
+            "source_url": self.source_url,
+            "event_url": self.event_url,
+            "event_title": self.event_title,
+            "start_date": self.start_date,
+            "start_time": self.start_time,
+            "end_date": self.end_date,
+            "end_time": self.end_time,
+            "venue_name": self.venue_name,
+            "address": self.address,
+            "city": self.city,
+            "state": self.state,
+            "description": self.description,
+            "source_sector": self.source_sector,
+            "target_sector": self.target_sector,
+            "visibility": self.visibility,
+            "confidence_score": f"{self.confidence_score:.2f}" if self.confidence_score else "",
+            "risk_flags": "; ".join(self.risk_flags),
+            "missing_fields": "; ".join(self.missing_fields),
+            "duplicate_key": self.duplicate_key,
+            "review_status": self.review_status,
+            "reviewer_notes": self.reviewer_notes,
+            "approved_for_export": "TRUE" if self.approved_for_export else "FALSE",
+        }

@@ -1,0 +1,32 @@
+name: Daily Phase 1 Ingestion
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * *"
+
+jobs:
+  phase1:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Show scaffold summary
+        run: python -m src.localist_ingestion.pipeline
+
+      - name: Initialize review sheet
+        if: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON != '' && secrets.GOOGLE_SHEETS_SPREADSHEET_ID != '' }}
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+        run: python -m src.localist_ingestion.pipeline init-review-sheet

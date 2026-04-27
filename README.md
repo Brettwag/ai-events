@@ -27,6 +27,22 @@ The design bias in this repo is:
 4. Review exporter writes rows to Google Sheets.
 5. A separate Phase 1.5 step exports only approved rows to ICS.
 
+## What works now
+
+- Config-driven source list, taxonomy, and runtime settings
+- Editable prompts for discovery, extraction, and classification
+- GitHub Actions starter workflow
+- Google Sheets review-tab initializer using repo secrets
+
+## Google Sheets secrets
+
+The workflow expects these GitHub repository secrets:
+
+- `GOOGLE_SERVICE_ACCOUNT_JSON`
+- `GOOGLE_SHEETS_SPREADSHEET_ID`
+
+Once those are set, the workflow can create or repair the main review tab header automatically.
+
 ## Current Phase 1 choices
 
 1. Recurring job: GitHub Actions

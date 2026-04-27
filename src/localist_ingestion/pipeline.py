@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 from .config import load_runtime_config, load_sources, load_taxonomy
+from .review_queue import GoogleSheetsReviewQueue
 
 
 def repo_root() -> Path:
@@ -39,7 +41,31 @@ def summarize_scaffold() -> str:
     return "\n".join(lines)
 
 
+def init_review_sheet() -> str:
+    root = repo_root()
+    runtime = load_runtime_config(root / "config")
+    queue = GoogleSheetsReviewQueue(runtime=runtime, repo_root=root)
+    queue.ensure_sheet_ready()
+    return f"Review sheet ready: {runtime.review_sheet_name}"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Phase 1 Localist ingestion scaffold utilities.")
+    parser.add_argument(
+        "command",
+        nargs="?",
+        default="summary",
+        choices=["summary", "init-review-sheet"],
+        help="Action to perform.",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = parse_args()
+    if args.command == "init-review-sheet":
+        print(init_review_sheet())
+        return
     print(summarize_scaffold())
 
 
