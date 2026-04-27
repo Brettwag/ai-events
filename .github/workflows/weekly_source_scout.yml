@@ -1,0 +1,34 @@
+name: Weekly Source Scout
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 15 * * 1"
+
+jobs:
+  source-scout:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run source scout
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ] || [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ] || [ -z "$GOOGLE_SHEETS_SPREADSHEET_ID" ]; then
+            echo "Required secrets are not set. Skipping source scout."
+            exit 0
+          fi
+          python -m src.localist_ingestion.pipeline run-source-scout

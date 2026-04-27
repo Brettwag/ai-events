@@ -82,13 +82,38 @@ def run_discovery() -> str:
     return "\n".join(lines)
 
 
+def run_weekly_source_scout() -> str:
+    from .source_scout import run_source_scout
+    from .source_scout_queue import GoogleSheetsSourceScoutQueue
+
+    root = repo_root()
+    config_dir = root / "config"
+    runtime = load_runtime_config(config_dir)
+    if not runtime.source_scout_enabled:
+        return "Source scout is disabled."
+    sources = load_sources(config_dir)
+    candidates = run_source_scout(
+        runtime=runtime,
+        sources=sources,
+        prompt_path=root / "prompts" / "source_scout.md",
+    )
+    lines = [f"Source scout produced {len(candidates)} candidate sources."]
+    if runtime.enable_google_sheets:
+        queue = GoogleSheetsSourceScoutQueue(runtime=runtime, repo_root=root)
+        counts = queue.upsert_candidates(candidates, run_date=date.today().isoformat())
+        lines.append(f"Scout queue upsert complete: inserted={counts['inserted']}, updated={counts['updated']}")
+    for candidate in candidates[:5]:
+        lines.append(f"- {candidate.label} | {candidate.base_url} | {candidate.status_recommendation}")
+    return "\n".join(lines)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phase 1 Localist ingestion scaffold utilities.")
     parser.add_argument(
         "command",
         nargs="?",
         default="summary",
-        choices=["summary", "init-review-sheet", "run-discovery"],
+        choices=["summary", "init-review-sheet", "run-discovery", "run-source-scout"],
         help="Action to perform.",
     )
     return parser.parse_args()
@@ -101,6 +126,9 @@ def main() -> None:
         return
     if args.command == "run-discovery":
         print(run_discovery())
+        return
+    if args.command == "run-source-scout":
+        print(run_weekly_source_scout())
         return
     print(summarize_scaffold())
 

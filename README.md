@@ -35,6 +35,7 @@ The design bias in this repo is:
 - GitHub Actions starter workflow
 - Google Sheets review-tab initializer using repo secrets
 - First-pass rule-based discovery for the three pilot sources
+- Weekly AI source scout scaffold using OpenAI Responses API
 
 ## Google Sheets secrets
 
@@ -75,6 +76,20 @@ Use two pools:
 - candidate weekly sources in [config/source_candidates.toml](/Users/brettwagner/ai-events/config/source_candidates.toml)
 
 See [docs/source-strategy.md](/Users/brettwagner/ai-events/docs/source-strategy.md) for the recommended workflow.
+
+## AI source scout
+
+The scout is a separate weekly workflow that:
+
+- uses OpenAI Responses API with the built-in web search tool
+- returns strict JSON candidate sources
+- writes those candidate sources to a separate Google Sheets tab
+
+It depends on:
+
+- `OPENAI_API_KEY`
+- `GOOGLE_SERVICE_ACCOUNT_JSON`
+- `GOOGLE_SHEETS_SPREADSHEET_ID`
 
 ## Current Phase 1 choices
 

@@ -1,0 +1,21 @@
+{
+  "columns": [
+    "run_date",
+    "candidate_id",
+    "label",
+    "base_url",
+    "seed_url",
+    "source_organization",
+    "geography_tags",
+    "source_type",
+    "trust_level",
+    "event_density",
+    "parser_difficulty",
+    "reason_to_include",
+    "evidence",
+    "status_recommendation",
+    "review_decision",
+    "review_notes",
+    "approved_source_id"
+  ]
+}

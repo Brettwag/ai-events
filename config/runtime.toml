@@ -4,6 +4,7 @@ time_zone = "America/Denver"
 cadence = "daily"
 run_time_local = "06:00"
 review_sheet_name = "Phase 1 Review Queue"
+source_scout_sheet_name = "Source Scout Queue"
 
 [pilot]
 geography = [
@@ -43,3 +44,16 @@ default_status = "Pending"
 enable_google_sheets = true
 enable_ics_export = true
 export_only_approved_rows = true
+
+[source_scout]
+enabled = true
+model = "gpt-5.4-mini"
+reasoning_effort = "low"
+max_candidates_per_run = 10
+search_region = "Raton, New Mexico"
+search_radius_miles = 100
+approved_domains = [
+  "ratonmainstreet.org",
+  "ratonnm.gov",
+  "exploreraton.com",
+]

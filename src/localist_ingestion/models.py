@@ -24,6 +24,7 @@ class RuntimeConfig:
     cadence: str
     run_time_local: str
     review_sheet_name: str
+    source_scout_sheet_name: str
     geography: list[str]
     radius_miles_min: int
     radius_miles_max: int
@@ -38,6 +39,13 @@ class RuntimeConfig:
     enable_google_sheets: bool
     enable_ics_export: bool
     export_only_approved_rows: bool
+    source_scout_enabled: bool
+    source_scout_model: str
+    source_scout_reasoning_effort: str
+    source_scout_max_candidates_per_run: int
+    source_scout_search_region: str
+    source_scout_search_radius_miles: int
+    approved_domains: list[str]
 
 
 @dataclass(slots=True)

@@ -19,6 +19,7 @@ def load_runtime_config(config_dir: Path) -> RuntimeConfig:
         cadence=raw["project"]["cadence"],
         run_time_local=raw["project"]["run_time_local"],
         review_sheet_name=raw["project"]["review_sheet_name"],
+        source_scout_sheet_name=raw["project"]["source_scout_sheet_name"],
         geography=raw["pilot"]["geography"],
         radius_miles_min=int(raw["pilot"]["radius_miles_min"]),
         radius_miles_max=int(raw["pilot"]["radius_miles_max"]),
@@ -33,6 +34,13 @@ def load_runtime_config(config_dir: Path) -> RuntimeConfig:
         enable_google_sheets=bool(raw["export"]["enable_google_sheets"]),
         enable_ics_export=bool(raw["export"]["enable_ics_export"]),
         export_only_approved_rows=bool(raw["export"]["export_only_approved_rows"]),
+        source_scout_enabled=bool(raw["source_scout"]["enabled"]),
+        source_scout_model=raw["source_scout"]["model"],
+        source_scout_reasoning_effort=raw["source_scout"]["reasoning_effort"],
+        source_scout_max_candidates_per_run=int(raw["source_scout"]["max_candidates_per_run"]),
+        source_scout_search_region=raw["source_scout"]["search_region"],
+        source_scout_search_radius_miles=int(raw["source_scout"]["search_radius_miles"]),
+        approved_domains=list(raw["source_scout"]["approved_domains"]),
     )
 
 
