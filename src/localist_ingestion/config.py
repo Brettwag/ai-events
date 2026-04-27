@@ -20,6 +20,7 @@ def load_runtime_config(config_dir: Path) -> RuntimeConfig:
         run_time_local=raw["project"]["run_time_local"],
         review_sheet_name=raw["project"]["review_sheet_name"],
         source_scout_sheet_name=raw["project"]["source_scout_sheet_name"],
+        ai_event_scout_sheet_name=raw["project"]["ai_event_scout_sheet_name"],
         geography=raw["pilot"]["geography"],
         radius_miles_min=int(raw["pilot"]["radius_miles_min"]),
         radius_miles_max=int(raw["pilot"]["radius_miles_max"]),
@@ -41,6 +42,13 @@ def load_runtime_config(config_dir: Path) -> RuntimeConfig:
         source_scout_search_region=raw["source_scout"]["search_region"],
         source_scout_search_radius_miles=int(raw["source_scout"]["search_radius_miles"]),
         approved_domains=list(raw["source_scout"]["approved_domains"]),
+        ai_event_scout_enabled=bool(raw["ai_event_scout"]["enabled"]),
+        ai_event_scout_model=raw["ai_event_scout"]["model"],
+        ai_event_scout_reasoning_effort=raw["ai_event_scout"]["reasoning_effort"],
+        ai_event_scout_max_events_per_run=int(raw["ai_event_scout"]["max_events_per_run"]),
+        ai_event_scout_search_region=raw["ai_event_scout"]["search_region"],
+        ai_event_scout_search_radius_miles=int(raw["ai_event_scout"]["search_radius_miles"]),
+        ai_event_scout_minimum_trust_level=raw["ai_event_scout"]["minimum_trust_level"],
     )
 
 

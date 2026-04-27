@@ -5,6 +5,7 @@ cadence = "daily"
 run_time_local = "06:00"
 review_sheet_name = "Phase 1 Review Queue"
 source_scout_sheet_name = "Source Scout Queue"
+ai_event_scout_sheet_name = "AI Event Scout Queue"
 
 [pilot]
 geography = [
@@ -57,3 +58,12 @@ approved_domains = [
   "ratonnm.gov",
   "exploreraton.com",
 ]
+
+[ai_event_scout]
+enabled = true
+model = "gpt-5.4-mini"
+reasoning_effort = "low"
+max_events_per_run = 25
+search_region = "Raton, New Mexico"
+search_radius_miles = 100
+minimum_trust_level = "medium"

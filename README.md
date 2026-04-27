@@ -36,6 +36,7 @@ The design bias in this repo is:
 - Google Sheets review-tab initializer using repo secrets
 - First-pass rule-based discovery for the three pilot sources
 - Weekly AI source scout scaffold using OpenAI Responses API
+- Daily AI event scout scaffold for high-recall event discovery
 
 ## Google Sheets secrets
 
@@ -90,6 +91,15 @@ It depends on:
 - `OPENAI_API_KEY`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
+
+## AI event scout
+
+The AI event scout is a separate daily workflow that:
+
+- uses OpenAI Responses API with the built-in web search tool
+- searches more broadly for real upcoming events in the pilot geography
+- writes results to a separate `AI Event Scout Queue` tab
+- is intentionally broader and noisier than the approved-source queue
 
 ## Current Phase 1 choices
 

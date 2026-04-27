@@ -1,0 +1,27 @@
+{
+  "columns": [
+    "run_date",
+    "scout_event_id",
+    "event_title",
+    "start_date",
+    "start_time",
+    "end_date",
+    "end_time",
+    "venue_name",
+    "address",
+    "city",
+    "state",
+    "description",
+    "source_organization",
+    "source_domain",
+    "source_url",
+    "event_url",
+    "trust_level",
+    "scout_confidence",
+    "reason_to_include",
+    "evidence",
+    "review_decision",
+    "review_notes",
+    "promote_to_main_queue"
+  ]
+}

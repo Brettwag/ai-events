@@ -107,13 +107,39 @@ def run_weekly_source_scout() -> str:
     return "\n".join(lines)
 
 
+def run_ai_event_scout() -> str:
+    from .ai_event_scout_queue import GoogleSheetsAIEventScoutQueue
+    from .event_scout import run_ai_event_scout as run_scout
+
+    root = repo_root()
+    config_dir = root / "config"
+    runtime = load_runtime_config(config_dir)
+    if not runtime.ai_event_scout_enabled:
+        return "AI event scout is disabled."
+    sources = load_sources(config_dir)
+    candidates = run_scout(
+        runtime=runtime,
+        sources=sources,
+        repo_root=root,
+        prompt_path=root / "prompts" / "event_scout.md",
+    )
+    lines = [f"AI event scout produced {len(candidates)} event candidates."]
+    if runtime.enable_google_sheets:
+        queue = GoogleSheetsAIEventScoutQueue(runtime=runtime, repo_root=root)
+        counts = queue.upsert_candidates(candidates, run_date=date.today().isoformat())
+        lines.append(f"AI event scout queue upsert complete: inserted={counts['inserted']}, updated={counts['updated']}")
+    for candidate in candidates[:5]:
+        lines.append(f"- {candidate.event_title} | {candidate.start_date} | {candidate.source_domain} | {candidate.trust_level}")
+    return "\n".join(lines)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phase 1 Localist ingestion scaffold utilities.")
     parser.add_argument(
         "command",
         nargs="?",
         default="summary",
-        choices=["summary", "init-review-sheet", "run-discovery", "run-source-scout"],
+        choices=["summary", "init-review-sheet", "run-discovery", "run-source-scout", "run-ai-event-scout"],
         help="Action to perform.",
     )
     return parser.parse_args()
@@ -129,6 +155,9 @@ def main() -> None:
         return
     if args.command == "run-source-scout":
         print(run_weekly_source_scout())
+        return
+    if args.command == "run-ai-event-scout":
+        print(run_ai_event_scout())
         return
     print(summarize_scaffold())
 

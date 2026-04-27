@@ -25,6 +25,7 @@ class RuntimeConfig:
     run_time_local: str
     review_sheet_name: str
     source_scout_sheet_name: str
+    ai_event_scout_sheet_name: str
     geography: list[str]
     radius_miles_min: int
     radius_miles_max: int
@@ -46,6 +47,13 @@ class RuntimeConfig:
     source_scout_search_region: str
     source_scout_search_radius_miles: int
     approved_domains: list[str]
+    ai_event_scout_enabled: bool
+    ai_event_scout_model: str
+    ai_event_scout_reasoning_effort: str
+    ai_event_scout_max_events_per_run: int
+    ai_event_scout_search_region: str
+    ai_event_scout_search_radius_miles: int
+    ai_event_scout_minimum_trust_level: str
 
 
 @dataclass(slots=True)
