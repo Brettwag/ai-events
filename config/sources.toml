@@ -1,0 +1,41 @@
+[[sources]]
+id = "raton-mainstreet"
+label = "Raton MainStreet Events"
+enabled = true
+type = "website"
+discovery_mode = "listing_page"
+base_url = "https://ratonmainstreet.org"
+seed_urls = [
+  "https://ratonmainstreet.org/events/",
+]
+source_organization = "Raton MainStreet"
+geography_tags = ["Raton, NM", "Northeastern New Mexico"]
+notes = "Initial approved pilot source."
+
+[[sources]]
+id = "raton-city-calendar"
+label = "City of Raton Calendar"
+enabled = true
+type = "website"
+discovery_mode = "listing_page"
+base_url = "https://ratonnm.gov"
+seed_urls = [
+  "https://ratonnm.gov/calendar.php",
+]
+source_organization = "City of Raton"
+geography_tags = ["Raton, NM", "Northeastern New Mexico"]
+notes = "Initial approved pilot source."
+
+[[sources]]
+id = "explore-raton-events"
+label = "Explore Raton Events"
+enabled = true
+type = "website"
+discovery_mode = "listing_page"
+base_url = "https://www.exploreraton.com"
+seed_urls = [
+  "https://www.exploreraton.com/events",
+]
+source_organization = "Explore Raton"
+geography_tags = ["Raton, NM", "Northeastern New Mexico"]
+notes = "Initial approved pilot source."

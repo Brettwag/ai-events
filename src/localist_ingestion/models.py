@@ -1,0 +1,68 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass(slots=True)
+class SourceConfig:
+    id: str
+    label: str
+    enabled: bool
+    type: str
+    discovery_mode: str
+    base_url: str
+    seed_urls: list[str]
+    source_organization: str
+    geography_tags: list[str] = field(default_factory=list)
+    notes: str = ""
+
+
+@dataclass(slots=True)
+class RuntimeConfig:
+    name: str
+    time_zone: str
+    cadence: str
+    run_time_local: str
+    review_sheet_name: str
+    geography: list[str]
+    radius_miles_min: int
+    radius_miles_max: int
+    geography_notes: str
+    minimum_required_fields: list[str]
+    minimum_required_location_fields: list[str]
+    minimum_confidence_score: float
+    drop_low_confidence_candidates: bool
+    allowed_statuses: list[str]
+    default_status: str
+    enable_google_sheets: bool
+    enable_ics_export: bool
+    export_only_approved_rows: bool
+
+
+@dataclass(slots=True)
+class EventCandidate:
+    event_id: str
+    source_id: str
+    source_url: str
+    event_url: str
+    event_title: str = ""
+    start_date: str = ""
+    start_time: str = ""
+    end_date: str = ""
+    end_time: str = ""
+    venue_name: str = ""
+    address: str = ""
+    city: str = ""
+    state: str = ""
+    description: str = ""
+    source_organization: str = ""
+    source_sector: str = "Unknown"
+    target_sector: str = "Unknown"
+    visibility: str = "Unknown"
+    confidence_score: float = 0.0
+    risk_flags: list[str] = field(default_factory=list)
+    missing_fields: list[str] = field(default_factory=list)
+    duplicate_key: str = ""
+    review_status: str = "Pending"
+    reviewer_notes: str = ""
+    approved_for_export: bool = False

@@ -1,0 +1,44 @@
+[project]
+name = "City of Raton Phase 1"
+time_zone = "America/Denver"
+cadence = "daily"
+run_time_local = "06:00"
+review_sheet_name = "Phase 1 Review Queue"
+
+[pilot]
+geography = [
+  "Raton, NM",
+  "Northeastern New Mexico",
+  "Southern Colorado",
+]
+radius_miles_min = 50
+radius_miles_max = 100
+geography_notes = "Use judgment for the logical surrounding area around Raton. Prefer caution when distance or relevance is ambiguous."
+
+[quality]
+minimum_required_fields = [
+  "event_title",
+  "start_date",
+  "source_url",
+]
+minimum_required_location_fields = [
+  "venue_name",
+  "address",
+  "city",
+]
+minimum_confidence_score = 0.75
+drop_low_confidence_candidates = false
+
+[review]
+allowed_statuses = [
+  "Pending",
+  "Approved",
+  "Rejected",
+  "Needs Edit",
+]
+default_status = "Pending"
+
+[export]
+enable_google_sheets = true
+enable_ics_export = true
+export_only_approved_rows = true

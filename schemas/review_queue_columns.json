@@ -1,0 +1,31 @@
+{
+  "columns": [
+    "event_id",
+    "run_date",
+    "source_id",
+    "source_organization",
+    "source_url",
+    "event_url",
+    "event_title",
+    "start_date",
+    "start_time",
+    "end_date",
+    "end_time",
+    "venue_name",
+    "address",
+    "city",
+    "state",
+    "description",
+    "source_sector",
+    "target_sector",
+    "visibility",
+    "confidence_score",
+    "risk_flags",
+    "missing_fields",
+    "duplicate_key",
+    "review_status",
+    "reviewer_notes",
+    "approved_for_export"
+  ]
+}
+

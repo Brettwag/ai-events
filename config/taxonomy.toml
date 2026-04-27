@@ -1,0 +1,30 @@
+[source_sector]
+allowed = ["Public", "Private", "Nonprofit", "Unknown"]
+default = "Unknown"
+
+[target_sector]
+allowed = ["Public", "Private", "Nonprofit", "Unknown"]
+default = "Unknown"
+
+[visibility]
+allowed = ["Public", "Invite-only", "Unknown"]
+default = "Unknown"
+
+[risk_flags]
+allowed = [
+  "Missing key fields",
+  "Low confidence extraction",
+  "Possible duplicate",
+  "Outside pilot geography",
+  "Potentially disallowed content",
+]
+
+[placeholder_subcategories]
+values = [
+  "Arts",
+  "Community",
+  "Government",
+  "Business",
+  "Education",
+]
+

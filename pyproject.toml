@@ -1,0 +1,9 @@
+[project]
+name = "localist-ingestion-phase1"
+version = "0.1.0"
+description = "Config-first Phase 1 scaffold for AI event ingestion into a spreadsheet review queue."
+requires-python = ">=3.11"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
