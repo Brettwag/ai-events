@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 from pathlib import Path
 
 from .config import load_runtime_config, load_sources, load_taxonomy
@@ -49,13 +50,45 @@ def init_review_sheet() -> str:
     return f"Review sheet ready: {runtime.review_sheet_name}"
 
 
+def run_discovery() -> str:
+    from .discovery import discover_events
+
+    root = repo_root()
+    config_dir = root / "config"
+    runtime = load_runtime_config(config_dir)
+    sources = load_sources(config_dir)
+    events, results = discover_events(sources, today=date.today())
+
+    lines = [
+        f"Discovered {len(events)} usable events across {len(results)} enabled sources.",
+    ]
+    for result in results:
+        lines.append(
+            f"- {result.source_id}: discovered={result.discovered}, emitted={result.emitted}, skipped={result.skipped}"
+        )
+        for note in result.notes[:3]:
+            lines.append(f"  note: {note}")
+
+    if runtime.enable_google_sheets:
+        queue = GoogleSheetsReviewQueue(runtime=runtime, repo_root=root)
+        counts = queue.upsert_candidates(events, run_date=date.today().isoformat())
+        lines.append(f"Google Sheets upsert complete: inserted={counts['inserted']}, updated={counts['updated']}")
+
+    if events:
+        lines.append("")
+        lines.append("Sample events:")
+        for event in events[:5]:
+            lines.append(f"- {event.event_title} | {event.start_date} | {event.venue_name or event.city} | {event.source_url}")
+    return "\n".join(lines)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phase 1 Localist ingestion scaffold utilities.")
     parser.add_argument(
         "command",
         nargs="?",
         default="summary",
-        choices=["summary", "init-review-sheet"],
+        choices=["summary", "init-review-sheet", "run-discovery"],
         help="Action to perform.",
     )
     return parser.parse_args()
@@ -65,6 +98,9 @@ def main() -> None:
     args = parse_args()
     if args.command == "init-review-sheet":
         print(init_review_sheet())
+        return
+    if args.command == "run-discovery":
+        print(run_discovery())
         return
     print(summarize_scaffold())
 

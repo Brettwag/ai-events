@@ -33,6 +33,7 @@ The design bias in this repo is:
 - Editable prompts for discovery, extraction, and classification
 - GitHub Actions starter workflow
 - Google Sheets review-tab initializer using repo secrets
+- First-pass rule-based discovery for the three pilot sources
 
 ## Google Sheets secrets
 
@@ -42,6 +43,19 @@ The workflow expects these GitHub repository secrets:
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
 
 Once those are set, the workflow can create or repair the main review tab header automatically.
+
+## Current discovery boundary
+
+The first-pass implementation is intentionally conservative:
+
+- `Raton MainStreet`:
+  parses the events listing page directly
+- `Explore Raton`:
+  parses event roundup posts into one event per row
+- `City of Raton Calendar`:
+  currently uses generic heuristics until we tune it against the live page structure
+
+This is the right Phase 1 tradeoff because precision matters more than recall.
 
 ## Current Phase 1 choices
 
