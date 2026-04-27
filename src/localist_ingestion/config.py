@@ -25,6 +25,7 @@ def load_runtime_config(config_dir: Path) -> RuntimeConfig:
         geography_notes=raw["pilot"]["geography_notes"],
         minimum_required_fields=raw["quality"]["minimum_required_fields"],
         minimum_required_location_fields=raw["quality"]["minimum_required_location_fields"],
+        lookahead_days=int(raw["quality"]["lookahead_days"]),
         minimum_confidence_score=float(raw["quality"]["minimum_confidence_score"]),
         drop_low_confidence_candidates=bool(raw["quality"]["drop_low_confidence_candidates"]),
         allowed_statuses=raw["review"]["allowed_statuses"],

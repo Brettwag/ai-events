@@ -57,7 +57,7 @@ def run_discovery() -> str:
     config_dir = root / "config"
     runtime = load_runtime_config(config_dir)
     sources = load_sources(config_dir)
-    events, results = discover_events(sources, today=date.today())
+    events, results = discover_events(sources, runtime=runtime, today=date.today())
 
     lines = [
         f"Discovered {len(events)} usable events across {len(results)} enabled sources.",

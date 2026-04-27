@@ -1,0 +1,98 @@
+[[candidates]]
+id = "shuler-theater"
+label = "Historic Shuler Theater"
+status = "recommended"
+priority = "high"
+base_url = "https://shulertheater.com"
+seed_url = "https://shulertheater.com/"
+source_organization = "Historic Shuler Theater"
+geography_tags = ["Raton, NM"]
+source_type = "venue"
+discovery_shape = "homepage with upcoming events and calendar link"
+parser_difficulty = "medium"
+notes = "High-signal local arts venue with visible upcoming events on homepage."
+
+[[candidates]]
+id = "nra-whittington-center-events"
+label = "NRA Whittington Center Events"
+status = "recommended"
+priority = "high"
+base_url = "https://www.nrawc.org"
+seed_url = "https://www.nrawc.org/events/"
+source_organization = "NRA Whittington Center"
+geography_tags = ["Raton, NM", "Colfax County"]
+source_type = "organization"
+discovery_shape = "event detail pages with explicit dates and locations"
+parser_difficulty = "medium"
+notes = "Strong source for public events and trainings in the Raton area."
+
+[[candidates]]
+id = "raton-arts-council"
+label = "Raton Arts & Humanities Council"
+status = "recommended"
+priority = "medium"
+base_url = "https://www.ratonarts.org"
+seed_url = "https://www.ratonarts.org/"
+source_organization = "Raton Arts & Humanities Council"
+geography_tags = ["Raton, NM"]
+source_type = "organization"
+discovery_shape = "arts/community site likely tied to performances and exhibits"
+parser_difficulty = "medium"
+notes = "Likely overlaps with Shuler Theater but still valuable as a direct cultural source."
+
+[[candidates]]
+id = "ratonian-community-calendar"
+label = "The Ratonian Community Calendar"
+status = "candidate"
+priority = "high"
+base_url = "https://theratonian.com"
+seed_url = "https://theratonian.com/calendar/"
+source_organization = "The Ratonian"
+geography_tags = ["Raton, NM"]
+source_type = "calendar_aggregator"
+discovery_shape = "community calendar page with external calendar references"
+parser_difficulty = "unknown"
+notes = "Potentially very valuable if the underlying calendar feed can be accessed cleanly."
+
+[[candidates]]
+id = "raton-art-space"
+label = "Raton Art Space & Community Garden"
+status = "candidate"
+priority = "medium"
+base_url = "https://www.ratonart.space"
+seed_url = "https://www.ratonart.space/"
+source_organization = "Raton Art Space & Community Garden"
+geography_tags = ["Raton, NM"]
+source_type = "organization"
+discovery_shape = "homepage with discover events messaging"
+parser_difficulty = "unknown"
+notes = "Small local source with workshop/community-event potential."
+
+[[candidates]]
+id = "main-street-live-trinidad"
+label = "Main Street LIVE Trinidad"
+status = "candidate"
+priority = "medium"
+base_url = "https://www.mainstreetlive.org"
+seed_url = "https://www.mainstreetlive.org/home"
+source_organization = "Main Street LIVE"
+geography_tags = ["Trinidad, CO", "Southern Colorado"]
+source_type = "venue"
+discovery_shape = "homepage with upcoming productions and calendar links"
+parser_difficulty = "medium"
+notes = "Useful nearby source within the likely geography radius."
+
+[[candidates]]
+id = "capulin-volcano-events"
+label = "Capulin Volcano NPS Events"
+status = "candidate"
+priority = "medium"
+base_url = "https://www.nps.gov"
+seed_url = "https://www.nps.gov/planyourvisit/event-search-results.htm?park=cavo"
+source_organization = "National Park Service"
+geography_tags = ["Capulin, NM", "Northeastern New Mexico"]
+source_type = "government"
+discovery_shape = "federal event detail pages"
+parser_difficulty = "medium"
+notes = "Good fit for seasonal educational or festival-style events near the Raton area."
+

@@ -14,6 +14,7 @@ The design bias in this repo is:
 ## Repo layout
 
 - `config/`: runtime, source, and taxonomy configuration
+- `config/source_candidates.toml`: weekly source-scout registry
 - `prompts/`: editable prompt text for discovery, extraction, and classification
 - `schemas/`: machine-readable review queue schema
 - `src/localist_ingestion/`: starter Python package for orchestration
@@ -56,6 +57,24 @@ The first-pass implementation is intentionally conservative:
   currently uses generic heuristics until we tune it against the live page structure
 
 This is the right Phase 1 tradeoff because precision matters more than recall.
+
+## Review-window policy
+
+The review queue uses a configurable future lookahead window in [config/runtime.toml](/Users/brettwagner/ai-events/config/runtime.toml).
+
+- Current default: `180` days
+- Good Phase 1 range: `180` to `365` days
+
+This keeps the sheet focused on events that are actionable enough for near-term review.
+
+## Source growth model
+
+Use two pools:
+
+- approved daily sources in [config/sources.toml](/Users/brettwagner/ai-events/config/sources.toml)
+- candidate weekly sources in [config/source_candidates.toml](/Users/brettwagner/ai-events/config/source_candidates.toml)
+
+See [docs/source-strategy.md](/Users/brettwagner/ai-events/docs/source-strategy.md) for the recommended workflow.
 
 ## Current Phase 1 choices
 

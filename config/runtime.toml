@@ -26,6 +26,7 @@ minimum_required_location_fields = [
   "address",
   "city",
 ]
+lookahead_days = 180
 minimum_confidence_score = 0.75
 drop_low_confidence_candidates = false
 

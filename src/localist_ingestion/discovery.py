@@ -10,7 +10,7 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup, Tag
 
-from .models import EventCandidate, SourceConfig
+from .models import EventCandidate, RuntimeConfig, SourceConfig
 
 
 USER_AGENT = (
@@ -43,7 +43,11 @@ def build_session() -> requests.Session:
     return session
 
 
-def discover_events(sources: list[SourceConfig], today: date | None = None) -> tuple[list[EventCandidate], list[SourceRunResult]]:
+def discover_events(
+    sources: list[SourceConfig],
+    runtime: RuntimeConfig,
+    today: date | None = None,
+) -> tuple[list[EventCandidate], list[SourceRunResult]]:
     today = today or date.today()
     session = build_session()
     all_events: list[EventCandidate] = []
@@ -66,7 +70,7 @@ def discover_events(sources: list[SourceConfig], today: date | None = None) -> t
                 )
             )
             continue
-        filtered = [event for event in events if is_candidate_usable(event, today)]
+        filtered = [event for event in events if is_candidate_usable(event, today, runtime.lookahead_days)]
         skipped = len(events) - len(filtered)
         all_events.extend(filtered)
         results.append(
@@ -203,6 +207,114 @@ def discover_generic_source(session: requests.Session, source: SourceConfig, tod
     return events, notes
 
 
+def discover_shuler_theater(session: requests.Session, source: SourceConfig, today: date) -> tuple[list[EventCandidate], list[str]]:
+    url = source.seed_urls[0]
+    html = fetch_html(session, url)
+    soup = BeautifulSoup(html, "html.parser")
+    notes: list[str] = []
+    events: list[EventCandidate] = []
+
+    date_nodes = soup.find_all(string=re.compile(rf"^\s*(?:{MONTH_PATTERN})\s*$", re.IGNORECASE))
+    for month_node in date_nodes:
+        month_text = normalize_space(str(month_node))
+        day_node = month_node.find_next(string=re.compile(r"^\s*\d{1,2}\s*$"))
+        time_node = month_node.find_next(string=re.compile(r"\d{1,2}:\d{2}\s*(?:a\.?m\.?|p\.?m\.?|am|pm)", re.IGNORECASE))
+        link_node = month_node.find_next("a", href=True)
+
+        if day_node is None or link_node is None:
+            continue
+
+        day_text = normalize_space(str(day_node))
+        title = normalize_space(link_node.get_text(" ", strip=True))
+        if not title:
+            continue
+
+        event_url = normalize_url(url, link_node["href"])
+        start_date = infer_month_day_date(month_text, day_text, today)
+        start_time = first_time_from_text(str(time_node)) if time_node else ""
+
+        event = build_candidate(
+            source=source,
+            event_url=event_url,
+            event_title=title,
+            start_date=start_date,
+            start_time=start_time,
+            venue_name="Historic Shuler Theater",
+            address="131 N 2nd St.",
+            city="Raton",
+            state="NM",
+            source_url=event_url,
+            confidence_score=0.72 if start_date else 0.45,
+        )
+        hydrate_from_event_detail(session, event)
+        if not event.start_date:
+            event.missing_fields.append("start_date")
+            event.risk_flags.append("Missing key fields")
+        events.append(event)
+
+    notes.append(f"Parsed {len(events)} Shuler Theater upcoming events from homepage.")
+    return dedupe_events(events), notes
+
+
+def discover_nra_whittington(session: requests.Session, source: SourceConfig, today: date) -> tuple[list[EventCandidate], list[str]]:
+    url = source.seed_urls[0]
+    html = fetch_html(session, url)
+    soup = BeautifulSoup(html, "html.parser")
+    notes: list[str] = []
+    detail_links: list[str] = []
+
+    for anchor in soup.find_all("a", href=True):
+        href = normalize_url(url, anchor["href"])
+        if "/events/items/" in href:
+            detail_links.append(href)
+
+    detail_links = unique_preserve_order(detail_links)[:60]
+    events: list[EventCandidate] = []
+    for detail_url in detail_links:
+        try:
+            detail_html = fetch_html(session, detail_url)
+        except requests.RequestException as exc:
+            notes.append(f"Skipped {detail_url}: {exc}")
+            continue
+        event = parse_nra_detail_page(source, detail_url, detail_html)
+        if event is not None:
+            events.append(event)
+
+    notes.append(f"Parsed {len(events)} NRA Whittington event detail pages.")
+    return events, notes
+
+
+def parse_nra_detail_page(source: SourceConfig, detail_url: str, html: str) -> EventCandidate | None:
+    soup = BeautifulSoup(html, "html.parser")
+    text = normalize_space(soup.get_text(" ", strip=True))
+    title = extract_heading_text(soup)
+    if not title:
+        return None
+
+    date_text = extract_labeled_block(text, "Date", "Location")
+    location_text = extract_labeled_block(text, "Location", "Description")
+    description = extract_labeled_block(text, "Description", "Contact")
+    start_date = parse_nra_date(date_text)
+
+    event = build_candidate(
+        source=source,
+        event_url=detail_url,
+        event_title=title,
+        start_date=start_date,
+        start_time=first_time_from_text(date_text),
+        venue_name=location_text,
+        description=description,
+        source_url=detail_url,
+        confidence_score=0.9 if start_date else 0.55,
+    )
+    if not event.start_date:
+        event.missing_fields.append("start_date")
+        event.risk_flags.append("Missing key fields")
+    if not location_text:
+        event.missing_fields.append("location")
+    return event
+
+
 def parse_explore_roundup(source: SourceConfig, roundup_url: str, html: str, today: date) -> list[EventCandidate]:
     soup = BeautifulSoup(html, "html.parser")
     post_title = ""
@@ -298,7 +410,7 @@ def build_candidate(
     )
 
 
-def is_candidate_usable(event: EventCandidate, today: date) -> bool:
+def is_candidate_usable(event: EventCandidate, today: date, lookahead_days: int) -> bool:
     required_ok = bool(event.event_title and event.start_date and event.source_url)
     if not required_ok:
         return False
@@ -306,7 +418,8 @@ def is_candidate_usable(event: EventCandidate, today: date) -> bool:
         start = date.fromisoformat(event.start_date)
     except ValueError:
         return False
-    return start >= today
+    max_date = today.fromordinal(today.toordinal() + lookahead_days)
+    return today <= start <= max_date
 
 
 def dedupe_events(events: Iterable[EventCandidate]) -> list[EventCandidate]:
@@ -451,6 +564,72 @@ def parse_date_token(token: str) -> date | None:
     return None
 
 
+def parse_month_day_token(token: str, year: int) -> date | None:
+    cleaned = token.replace("Sept", "Sep")
+    for fmt in ("%B %d %Y", "%b %d %Y"):
+        try:
+            return datetime.strptime(f"{cleaned} {year}", fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def parse_nra_date(text: str) -> str:
+    normalized = normalize_space(text.replace(">", " ").replace("|", " "))
+    full = first_iso_date_from_text(normalized)
+    if full:
+        return full
+
+    same_month_range = re.search(
+        rf"({MONTH_PATTERN})\s+(\d{{1,2}})\s*-\s*(\d{{1,2}}),?\s*(20\d{{2}})",
+        normalized,
+        re.IGNORECASE,
+    )
+    if same_month_range:
+        parsed = parse_month_day_token(
+            f"{same_month_range.group(1)} {same_month_range.group(2)}",
+            int(same_month_range.group(4)),
+        )
+        return parsed.isoformat() if parsed else ""
+
+    single = re.search(rf"({MONTH_PATTERN})\s+(\d{{1,2}}),?\s*(20\d{{2}})", normalized, re.IGNORECASE)
+    if single:
+        parsed = parse_month_day_token(f"{single.group(1)} {single.group(2)}", int(single.group(3)))
+        return parsed.isoformat() if parsed else ""
+
+    return ""
+
+
+def infer_month_day_date(month_text: str, day_text: str, today: date) -> str:
+    parsed = parse_month_day_token(f"{month_text} {day_text}", today.year)
+    if parsed is None:
+        return ""
+    if parsed < today:
+        rolled = parse_month_day_token(f"{month_text} {day_text}", today.year + 1)
+        if rolled is not None:
+            return rolled.isoformat()
+    return parsed.isoformat()
+
+
+def extract_heading_text(soup: BeautifulSoup) -> str:
+    for tag_name in ["h1", "title"]:
+        node = soup.find(tag_name)
+        if node is not None:
+            text = normalize_space(node.get_text(" ", strip=True))
+            if text:
+                return text
+    return ""
+
+
+def extract_labeled_block(text: str, start_label: str, end_label: str) -> str:
+    pattern = re.compile(rf"{re.escape(start_label)}\s*(.+?)(?={re.escape(end_label)}|$)", re.IGNORECASE)
+    match = pattern.search(text)
+    if not match:
+        return ""
+    max_length = 500 if start_label.lower() == "description" else 160
+    return truncate_text(normalize_space(match.group(1)), max_length)
+
+
 def parse_year_from_text(text: str) -> int | None:
     match = re.search(r"\b(20\d{2})\b", text)
     return int(match.group(1)) if match else None
@@ -479,4 +658,6 @@ def unique_preserve_order(values: Iterable[str]) -> list[str]:
 SOURCE_HANDLERS = {
     "raton-mainstreet": discover_raton_mainstreet,
     "explore-raton-events": discover_explore_raton,
+    "shuler-theater": discover_shuler_theater,
+    "nra-whittington-center-events": discover_nra_whittington,
 }

@@ -30,6 +30,7 @@ class RuntimeConfig:
     geography_notes: str
     minimum_required_fields: list[str]
     minimum_required_location_fields: list[str]
+    lookahead_days: int
     minimum_confidence_score: float
     drop_low_confidence_candidates: bool
     allowed_statuses: list[str]

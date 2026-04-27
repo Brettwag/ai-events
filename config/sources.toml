@@ -39,3 +39,31 @@ seed_urls = [
 source_organization = "Explore Raton"
 geography_tags = ["Raton, NM", "Northeastern New Mexico"]
 notes = "Initial approved pilot source."
+
+[[sources]]
+id = "shuler-theater"
+label = "Historic Shuler Theater"
+enabled = true
+type = "website"
+discovery_mode = "homepage_upcoming"
+base_url = "https://shulertheater.com"
+seed_urls = [
+  "https://shulertheater.com/",
+]
+source_organization = "Historic Shuler Theater"
+geography_tags = ["Raton, NM", "Northeastern New Mexico"]
+notes = "Approved local performing arts venue source."
+
+[[sources]]
+id = "nra-whittington-center-events"
+label = "NRA Whittington Center Events"
+enabled = true
+type = "website"
+discovery_mode = "event_detail_listing"
+base_url = "https://www.nrawc.org"
+seed_urls = [
+  "https://www.nrawc.org/events/",
+]
+source_organization = "NRA Whittington Center"
+geography_tags = ["Raton, NM", "Colfax County", "Northeastern New Mexico"]
+notes = "Approved event-heavy source with structured detail pages."
