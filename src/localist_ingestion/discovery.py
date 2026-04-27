@@ -125,7 +125,10 @@ def discover_raton_mainstreet(session: requests.Session, source: SourceConfig, t
             event.missing_fields.append("start_date")
             event.risk_flags.append("Missing key fields")
         if not venue_name:
+            hydrate_from_event_detail(session, event)
+        if not (event.venue_name or event.address or event.city):
             event.missing_fields.append("location")
+            event.risk_flags.append("Missing key fields")
         events.append(event)
 
     notes.append(f"Parsed {len(events)} event cards from {url}.")
@@ -253,6 +256,7 @@ def parse_explore_roundup(source: SourceConfig, roundup_url: str, html: str, tod
             event.risk_flags.append("Missing key fields")
         if not location_line:
             event.missing_fields.append("location")
+            event.risk_flags.append("Missing key fields")
         candidates.append(event)
 
     return candidates
@@ -285,8 +289,8 @@ def build_candidate(
         start_time=start_time,
         venue_name=venue_name,
         address=address,
-        city=city if venue_name or address else "",
-        state=state if venue_name or address else "",
+        city=city,
+        state=state,
         description=description,
         source_organization=source.source_organization,
         confidence_score=confidence_score,
@@ -296,8 +300,7 @@ def build_candidate(
 
 def is_candidate_usable(event: EventCandidate, today: date) -> bool:
     required_ok = bool(event.event_title and event.start_date and event.source_url)
-    location_ok = bool(event.venue_name or event.address or event.city)
-    if not required_ok or not location_ok:
+    if not required_ok:
         return False
     try:
         start = date.fromisoformat(event.start_date)
@@ -319,6 +322,44 @@ def fetch_html(session: requests.Session, url: str) -> str:
     response = session.get(url, timeout=30)
     response.raise_for_status()
     return response.text
+
+
+def hydrate_from_event_detail(session: requests.Session, event: EventCandidate) -> None:
+    if not event.event_url:
+        return
+    try:
+        html = fetch_html(session, event.event_url)
+    except requests.RequestException:
+        return
+
+    soup = BeautifulSoup(html, "html.parser")
+    text = normalize_space(soup.get_text(" ", strip=True))
+
+    if not event.venue_name:
+        event.venue_name = extract_location_from_detail(text)
+    if not event.start_date:
+        event.start_date = first_iso_date_from_text(text)
+    if not event.start_time:
+        event.start_time = first_time_from_text(text)
+    if not event.description:
+        event.description = truncate_text(text, 400)
+    if event.venue_name:
+        event.duplicate_key = make_duplicate_key(event.event_title, event.start_date, event.venue_name)
+
+
+def extract_location_from_detail(text: str) -> str:
+    match = re.search(r"Location:\s*(.+?)(?:Tickets:|Category:|Generate iCal|Address|Contact|$)", text, re.IGNORECASE)
+    if not match:
+        return ""
+    value = normalize_space(match.group(1))
+    return truncate_text(value, 120)
+
+
+def truncate_text(text: str, max_length: int) -> str:
+    text = normalize_space(text)
+    if len(text) <= max_length:
+        return text
+    return text[: max_length - 3].rstrip() + "..."
 
 
 def normalize_url(base_url: str, href: str) -> str:
