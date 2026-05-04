@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 .DS_Store
+exports/
+*.ics
+google-service-account.json

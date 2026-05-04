@@ -38,6 +38,7 @@ The design bias in this repo is:
 - First-pass rule-based discovery for the three pilot sources
 - Weekly AI source scout scaffold using OpenAI Responses API
 - Daily AI event scout scaffold for high-recall event discovery
+- ICS export for approved rows via CLI and local admin feed endpoint
 
 ## Google Sheets secrets
 
@@ -110,6 +111,8 @@ There is now a local-first admin app for operating the pilot:
 - edit approved sources
 - inspect candidate sources
 - inspect current workflow lanes
+- review merged workflow events
+- open an approved-events ICS feed
 
 Run it with:
 
@@ -124,6 +127,22 @@ http://127.0.0.1:8765
 ```
 
 See [docs/local-admin.md](/Users/brettwagner/ai-events/docs/local-admin.md) for details.
+
+## Approved ICS export
+
+Approved events can now be exported from the same Google Sheets review data in two ways:
+
+```bash
+python -m src.localist_ingestion.pipeline export-approved-ics
+```
+
+That writes `exports/approved-events.ics` by default.
+
+When the local admin server is running with Google Sheets credentials, it also exposes:
+
+```text
+http://127.0.0.1:8765/api/approved-events.ics
+```
 
 ## Current Phase 1 choices
 

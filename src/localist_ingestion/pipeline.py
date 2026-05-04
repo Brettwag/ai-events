@@ -5,6 +5,7 @@ from datetime import date
 from pathlib import Path
 
 from .config import load_runtime_config, load_sources, load_taxonomy
+from .ics_export import write_approved_events_ics
 from .review_queue import GoogleSheetsReviewQueue
 
 
@@ -133,14 +134,36 @@ def run_ai_event_scout() -> str:
     return "\n".join(lines)
 
 
+def export_approved_ics(output_path: Path | None = None) -> str:
+    root = repo_root()
+    config_dir = root / "config"
+    runtime = load_runtime_config(config_dir)
+    if not runtime.enable_ics_export:
+        return "ICS export is disabled."
+    target = output_path or (root / "exports" / "approved-events.ics")
+    written = write_approved_events_ics(runtime=runtime, repo_root=root, output_path=target)
+    return f"Approved events ICS written to {written}"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phase 1 Localist ingestion scaffold utilities.")
     parser.add_argument(
         "command",
         nargs="?",
         default="summary",
-        choices=["summary", "init-review-sheet", "run-discovery", "run-source-scout", "run-ai-event-scout"],
+        choices=[
+            "summary",
+            "init-review-sheet",
+            "run-discovery",
+            "run-source-scout",
+            "run-ai-event-scout",
+            "export-approved-ics",
+        ],
         help="Action to perform.",
+    )
+    parser.add_argument(
+        "--output",
+        help="Optional output path for ICS export.",
     )
     return parser.parse_args()
 
@@ -158,6 +181,10 @@ def main() -> None:
         return
     if args.command == "run-ai-event-scout":
         print(run_ai_event_scout())
+        return
+    if args.command == "export-approved-ics":
+        output_path = Path(args.output).expanduser() if args.output else None
+        print(export_approved_ics(output_path=output_path))
         return
     print(summarize_scaffold())
 

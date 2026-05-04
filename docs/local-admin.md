@@ -5,14 +5,15 @@ This repo now includes a local-first admin app for operating the pilot without h
 ## What it does today
 
 - edit core runtime inputs
-- review and approve event rows from the main Google Sheet queue
+- merge live workflow rows into one review table
+- save review decisions back to the spreadsheet
+- expose approved events as an ICS feed
 - edit approved daily sources
 - inspect candidate sources
 - inspect workflow lanes
 
 ## What it does not do yet
 
-- ICS generation
 - Localist upload
 - triggering GitHub Actions from the UI
 
@@ -38,22 +39,25 @@ AI_EVENTS_ADMIN_PORT=8877 python3.11 admin/server.py
 
 ## Spreadsheet-backed review mode
 
-The local app can now read and write the same Google Sheet used by the ingestion workflows.
-That means:
-
-- Google Sheets remains the detailed source of truth
-- the local app shows a narrower review-focused moderation table
-- approval decisions written in the app update the existing spreadsheet rows
-
-For that mode, set these environment variables before starting the server:
+To read the live workflow tabs and write review decisions back to the same spreadsheet rows, start the server with:
 
 ```bash
 export GOOGLE_SHEETS_SPREADSHEET_ID="your_spreadsheet_id"
-export GOOGLE_SERVICE_ACCOUNT_JSON_PATH="/absolute/path/to/service-account.json"
+export GOOGLE_SERVICE_ACCOUNT_JSON_PATH="/Users/brettwagner/ai-events/google-service-account.json"
 python3.11 admin/server.py
 ```
 
-You can also use `GOOGLE_SERVICE_ACCOUNT_JSON` if you prefer passing the full JSON as an environment variable.
+The server also accepts `GOOGLE_SERVICE_ACCOUNT_JSON` if you prefer passing the raw JSON as an environment variable.
+
+## Approved-events ICS feed
+
+Once event rows are marked `review_status = Approved` and `approved_for_export = TRUE`, the local app exposes:
+
+```text
+http://127.0.0.1:8765/api/approved-events.ics
+```
+
+You can open that feed directly from the `Review` toolbar.
 
 ## Why this shape
 
@@ -74,4 +78,4 @@ The local app currently edits:
 And it reads:
 
 - `config/source_candidates.toml`
-- `Phase 1 Review Queue` in Google Sheets when credentials are available
+- the three workflow tabs in Google Sheets when credentials are available

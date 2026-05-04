@@ -28,7 +28,10 @@ def load_google_service_account_info() -> dict:
             raise RuntimeError(
                 "Missing GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_JSON_PATH environment variable."
             )
-        return json.loads(Path(path).read_text(encoding="utf-8"))
+        try:
+            return json.loads(Path(path).read_text(encoding="utf-8"))
+        except FileNotFoundError as exc:
+            raise RuntimeError(f"Service account file not found: {path}") from exc
     try:
         return json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -43,14 +46,14 @@ def load_spreadsheet_id() -> str:
 
 
 class GoogleSheetsReviewQueue:
-    def __init__(self, runtime: RuntimeConfig, repo_root: Path) -> None:
+    def __init__(self, runtime: RuntimeConfig, repo_root: Path, sheet_name: str | None = None) -> None:
         credentials_cls, build = _import_google_clients()
         service_account_info = load_google_service_account_info()
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         credentials = credentials_cls.from_service_account_info(service_account_info, scopes=scopes)
         self.service = build("sheets", "v4", credentials=credentials)
         self.spreadsheet_id = load_spreadsheet_id()
-        self.sheet_name = runtime.review_sheet_name
+        self.sheet_name = sheet_name or runtime.review_sheet_name
         self.columns = load_review_queue_columns(repo_root)
         self.last_column = column_letter(len(self.columns))
 
@@ -97,8 +100,13 @@ class GoogleSheetsReviewQueue:
 
         return {"updated": updates, "inserted": inserts}
 
+    def sheet_exists(self) -> bool:
+        return self.sheet_name in self._sheet_names()
+
     def list_records(self) -> list[dict[str, str]]:
-        self.ensure_sheet_ready()
+        if not self.sheet_exists():
+            return []
+
         response = self.service.spreadsheets().values().get(
             spreadsheetId=self.spreadsheet_id,
             range=f"{self.sheet_name}!A:{self.last_column}",
@@ -113,15 +121,17 @@ class GoogleSheetsReviewQueue:
         for row_number, row in enumerate(rows, start=2):
             record = {column: row[index] if index < len(row) else "" for index, column in enumerate(header)}
             record["row_number"] = str(row_number)
+            record["sheet_name"] = self.sheet_name
             records.append(record)
         return records
 
     def update_review_records(self, updates: list[dict[str, Any]]) -> dict[str, Any]:
-        self.ensure_sheet_ready()
+        if not self.sheet_exists():
+            return {"updated": 0, "missing": [str(item.get("record_id", "")).strip() for item in updates if item.get("record_id")]}
+
         existing = self._existing_rows_by_record_id()
         header_index = {name: index for index, name in enumerate(self.columns)}
         requests: list[dict[str, Any]] = []
-        updated_record_ids: list[str] = []
         missing_record_ids: list[str] = []
 
         for update in updates:
@@ -152,7 +162,6 @@ class GoogleSheetsReviewQueue:
                         "values": [[value]],
                     }
                 )
-            updated_record_ids.append(record_id)
 
         if requests:
             self.service.spreadsheets().values().batchUpdate(
@@ -163,10 +172,7 @@ class GoogleSheetsReviewQueue:
                 },
             ).execute()
 
-        return {
-            "updated": len(updated_record_ids),
-            "missing": missing_record_ids,
-        }
+        return {"updated": len(requests), "missing": missing_record_ids}
 
     def _sheet_names(self) -> set[str]:
         metadata = self.service.spreadsheets().get(spreadsheetId=self.spreadsheet_id).execute()

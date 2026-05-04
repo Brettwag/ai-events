@@ -3,9 +3,9 @@ const state = {
   sources: [],
   candidates: [],
   workflows: [],
-  reviewQueue: [],
-  reviewQueueSheetName: "",
-  reviewQueueError: "",
+  reviewRows: [],
+  reviewSort: "date",
+  reviewLaneStats: [],
 };
 
 const runtimeFieldSpec = [
@@ -40,7 +40,12 @@ document.getElementById("add-source").addEventListener("click", () => {
   state.sources.push(blankSource());
   renderSources();
 });
-document.getElementById("refresh-review-queue").addEventListener("click", () => refreshReviewQueue());
+document.getElementById("save-review").addEventListener("click", saveReviews);
+document.getElementById("refresh-review").addEventListener("click", refreshReviewRows);
+document.getElementById("review-sort").addEventListener("change", async (event) => {
+  state.reviewSort = event.target.value;
+  await refreshReviewRows();
+});
 
 bootstrap();
 
@@ -50,7 +55,7 @@ async function bootstrap() {
   renderSources();
   renderCandidates();
   renderWorkflows();
-  await refreshReviewQueue({ silent: true });
+  await refreshReviewRows({ silent: true });
 }
 
 async function loadRuntime() {
@@ -72,23 +77,21 @@ async function loadWorkflows() {
   state.workflows = payload.workflows;
 }
 
-async function refreshReviewQueue({ silent = false } = {}) {
+async function refreshReviewRows({ silent = false } = {}) {
   try {
-    const payload = await fetchJson("/api/review-queue");
-    state.reviewQueue = payload.rows || [];
-    state.reviewQueueSheetName = payload.sheet_name || "";
-    state.reviewQueueError = "";
-    renderReviewQueue();
+    const payload = await fetchJson(`/api/review-queue?sort=${encodeURIComponent(state.reviewSort)}`);
+    state.reviewRows = payload.rows || [];
+    state.reviewLaneStats = payload.lane_stats || [];
+    renderReview();
     if (!silent) {
-      setStatus("Review queue refreshed");
+      setStatus("Review refreshed");
     }
   } catch (error) {
-    state.reviewQueue = [];
-    state.reviewQueueSheetName = "";
-    state.reviewQueueError = error.message;
-    renderReviewQueue();
+    state.reviewRows = [];
+    state.reviewLaneStats = [];
+    renderReviewError(error.message);
     if (!silent) {
-      setStatus("Review queue unavailable");
+      setStatus("Review unavailable");
     }
   }
 }
@@ -102,7 +105,7 @@ function activateView(view) {
   });
   document.getElementById("view-title").textContent = {
     inputs: "Inputs",
-    review: "Review Queue",
+    review: "Review",
     sources: "Approved Sources",
     candidates: "Candidate Sources",
     workflows: "Workflows",
@@ -151,20 +154,14 @@ function renderRuntime() {
   });
 }
 
-function renderReviewQueue() {
-  const container = document.getElementById("review-queue-list");
-  const sheetName = document.getElementById("review-sheet-name");
-  sheetName.textContent = state.reviewQueueSheetName
-    ? `Backed by Google Sheet: ${state.reviewQueueSheetName}`
-    : "Backed by Google Sheet once local credentials are available";
-
+function renderReview() {
+  renderReviewSummary();
+  renderReviewLanes();
+  const container = document.getElementById("review-list");
   container.innerHTML = "";
-  if (state.reviewQueueError) {
-    container.innerHTML = `<div class="empty error-block">${escapeHtml(state.reviewQueueError)}</div>`;
-    return;
-  }
-  if (!state.reviewQueue.length) {
-    container.innerHTML = `<div class="empty">No event rows are in the review queue yet.</div>`;
+
+  if (!state.reviewRows.length) {
+    container.innerHTML = `<div class="empty">No event rows are available from the workflow sheets yet.</div>`;
     return;
   }
 
@@ -174,36 +171,59 @@ function renderReviewQueue() {
     <thead>
       <tr>
         <th>Event</th>
-        <th>When</th>
+        <th>Timing</th>
         <th>Location</th>
         <th>Source</th>
         <th>Quality</th>
         <th>Review</th>
-        <th>Notes</th>
-        <th>Links</th>
       </tr>
     </thead>
     <tbody>
-      ${state.reviewQueue.map((row) => reviewRow(row)).join("")}
+      ${state.reviewRows.map((row, index) => reviewRow(row, index)).join("")}
     </tbody>
   `;
-  container.appendChild(table);
+  const scrollWrap = document.createElement("div");
+  scrollWrap.className = "table-wrap review-scroll-wrap";
+  scrollWrap.appendChild(table);
+  container.appendChild(scrollWrap);
 
-  container.querySelectorAll("[data-review-save]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      await saveReviewRow(button.dataset.reviewSave);
-    });
+  container.querySelectorAll("[data-review-status]").forEach((input) => {
+    input.addEventListener("change", handleReviewFieldChange);
   });
+  container.querySelectorAll("[data-review-export]").forEach((input) => {
+    input.addEventListener("change", handleReviewFieldChange);
+  });
+  container.querySelectorAll("[data-review-notes]").forEach((input) => {
+    input.addEventListener("input", handleReviewFieldChange);
+  });
+}
 
-  container.querySelectorAll("[data-quick-status]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      await applyQuickReview(
-        button.dataset.recordId,
-        button.dataset.quickStatus,
-        button.dataset.quickExport === "true"
-      );
-    });
-  });
+function renderReviewError(message) {
+  renderReviewSummary();
+  renderReviewLanes();
+  document.getElementById("review-list").innerHTML = `<div class="empty error-block">${escapeHtml(message)}</div>`;
+}
+
+function renderReviewSummary() {
+  const container = document.getElementById("review-summary");
+  const counts = countReviews();
+  container.innerHTML = `
+    <span class="meta-pill">${state.reviewRows.length} total</span>
+    <span class="meta-pill">${counts.pending} pending</span>
+    <span class="meta-pill">${counts.approved} approved</span>
+    <span class="meta-pill">${counts.needsEdit} needs edit</span>
+    <span class="meta-pill">${counts.rejected} rejected</span>
+  `;
+}
+
+function renderReviewLanes() {
+  const container = document.getElementById("review-lanes");
+  container.innerHTML = state.reviewLaneStats
+    .map(
+      (lane) =>
+        `<span class="meta-pill">${escapeHtml(lane.label)}: ${escapeHtml(String(lane.event_rows))}</span>`
+    )
+    .join("");
 }
 
 function renderSources() {
@@ -300,10 +320,7 @@ async function saveRuntime() {
     if (kind === "number") {
       value = Number(value);
     } else if (kind === "list") {
-      value = value
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean);
+      value = value.split("\n").map((item) => item.trim()).filter(Boolean);
     }
     setPath(payload, input.dataset.path, value);
   });
@@ -320,10 +337,7 @@ async function saveSources() {
     if (input.dataset.key === "enabled") {
       value = value === "true";
     } else if (input.dataset.key === "seed_urls" || input.dataset.key === "geography_tags") {
-      value = value
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean);
+      value = value.split("\n").map((item) => item.trim()).filter(Boolean);
     }
     acc[index][input.dataset.key] = value;
     return acc;
@@ -333,115 +347,38 @@ async function saveSources() {
   setStatus("Sources saved");
 }
 
-async function saveReviewRow(recordId) {
-  const row = document.querySelector(`[data-review-row="${cssEscape(recordId)}"]`);
-  if (!row) {
-    return;
-  }
-  const payload = {
-    updates: [
-      {
-        record_id: recordId,
-        review_status: row.querySelector("[data-review-status]").value,
-        approved_for_export: row.querySelector("[data-review-export]").checked,
-        reviewer_notes: row.querySelector("[data-review-notes]").value,
-      },
-    ],
-  };
-
-  const button = row.querySelector("[data-review-save]");
-  const previousLabel = button.textContent;
-  button.disabled = true;
-  button.textContent = "Saving...";
-  try {
-    await postJson("/api/review-queue", payload);
-    setStatus("Review saved");
-    await refreshReviewQueue({ silent: true });
-  } finally {
-    button.disabled = false;
-    button.textContent = previousLabel;
-  }
+async function saveReviews() {
+  syncReviewRowsFromDom();
+  const updates = state.reviewRows.map((row) => ({
+    record_id: row.record_id,
+    sheet_name: row.sheet_name,
+    review_status: row.review_status,
+    approved_for_export: row.approved_for_export,
+    reviewer_notes: row.reviewer_notes,
+  }));
+  await postJson("/api/review-queue", { updates });
+  setStatus("Reviews saved");
+  await refreshReviewRows({ silent: true });
 }
 
-async function applyQuickReview(recordId, status, approvedForExport) {
-  const row = document.querySelector(`[data-review-row="${cssEscape(recordId)}"]`);
-  if (!row) {
-    return;
-  }
-  row.querySelector("[data-review-status]").value = status;
-  row.querySelector("[data-review-export]").checked = approvedForExport;
-  await saveReviewRow(recordId);
+function handleReviewFieldChange() {
+  syncReviewRowsFromDom();
+  renderReviewSummary();
 }
 
-function reviewRow(row) {
-  return `
-    <tr data-review-row="${escapeHtml(row.record_id)}">
-      <td class="cell-title review-event-cell">
-        <div class="cell-stack">
-          <strong>${escapeHtml(row.event_title || "Untitled event")}</strong>
-          <div class="cell-subtitle">${escapeHtml(formatWhen(row))}</div>
-          <div class="tag-list compact">
-            ${renderPill(row.source_method, "info")}
-            ${renderPill(row.status_recommendation, "neutral")}
-          </div>
-          ${row.description ? `<div class="review-description">${escapeHtml(truncate(row.description, 180))}</div>` : ""}
-        </div>
-      </td>
-      <td>
-        <div class="cell-stack">
-          <strong>${escapeHtml(row.start_date || "Missing date")}</strong>
-          <div class="cell-subtitle">${escapeHtml(row.start_time || "Time missing")}</div>
-        </div>
-      </td>
-      <td>
-        <div class="cell-stack">
-          <strong>${escapeHtml(row.venue_name || "Location pending")}</strong>
-          <div class="cell-subtitle">${escapeHtml(row.location_display || row.city || "Needs location review")}</div>
-        </div>
-      </td>
-      <td>
-        <div class="cell-stack">
-          <strong>${escapeHtml(row.source_organization || row.source_domain || "Unknown source")}</strong>
-          <div class="cell-subtitle">${escapeHtml(row.source_domain || "")}</div>
-        </div>
-      </td>
-      <td>
-        <div class="cell-stack">
-          <div class="tag-list compact">
-            ${renderPill(row.trust_level || "unrated", toneForTrust(row.trust_level))}
-            ${renderPill(row.confidence_score ? `score ${row.confidence_score}` : "score n/a", "neutral")}
-          </div>
-          <div class="tag-list compact">
-            ${row.missing_fields.map((item) => renderPill(item, "warning")).join("")}
-            ${row.risk_flags.map((item) => renderPill(item, "danger")).join("")}
-          </div>
-        </div>
-      </td>
-      <td class="review-controls">
-        <select class="table-select" data-review-status>
-          ${reviewStatusOptions(row.review_status)}
-        </select>
-        <label class="checkbox-row">
-          <input type="checkbox" data-review-export ${row.approved_for_export ? "checked" : ""} />
-          <span>Approved for export</span>
-        </label>
-        <div class="row-actions">
-          <button class="button button-small" data-quick-status="Approved" data-quick-export="true" data-record-id="${escapeHtml(row.record_id)}">Approve</button>
-          <button class="button button-small" data-quick-status="Rejected" data-quick-export="false" data-record-id="${escapeHtml(row.record_id)}">Reject</button>
-          <button class="button button-primary button-small" data-review-save="${escapeHtml(row.record_id)}">Save</button>
-        </div>
-      </td>
-      <td>
-        <textarea class="table-textarea review-notes" data-review-notes placeholder="Add reviewer notes...">${escapeHtml(row.reviewer_notes || "")}</textarea>
-      </td>
-      <td>
-        <div class="cell-stack review-links">
-          ${row.event_url ? `<a href="${escapeHtml(row.event_url)}" target="_blank" rel="noreferrer">Event page</a>` : ""}
-          ${row.source_url ? `<a href="${escapeHtml(row.source_url)}" target="_blank" rel="noreferrer">Source page</a>` : ""}
-        </div>
-      </td>
-    </tr>
-  `;
+function syncReviewRowsFromDom() {
+  document.querySelectorAll("[data-review-index]").forEach((row) => {
+    const index = Number(row.dataset.reviewIndex);
+    const statusInput = row.querySelector("[data-review-status]");
+    const exportInput = row.querySelector("[data-review-export]");
+    const notesInput = row.querySelector("[data-review-notes]");
+    if (!state.reviewRows[index]) {
+      return;
+    }
+    state.reviewRows[index].review_status = statusInput.value;
+    state.reviewRows[index].approved_for_export = exportInput.checked;
+    state.reviewRows[index].reviewer_notes = notesInput.value;
+  });
 }
 
 function sourceInput(index, key, value, type = "text") {
@@ -491,11 +428,11 @@ function setStatus(message) {
 
 async function fetchJson(url) {
   const response = await fetch(url);
-  const payload = await response.json().catch(() => null);
+  const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(payload?.error || `${url} failed`);
+    throw new Error(data?.error || `${url} failed`);
   }
-  return payload;
+  return data;
 }
 
 async function postJson(url, payload) {
@@ -519,77 +456,109 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-function truncate(value, maxLength) {
-  const text = String(value || "");
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return `${text.slice(0, maxLength - 1)}…`;
-}
-
-function formatWhen(row) {
-  const parts = [row.start_date, row.start_time].filter(Boolean);
-  return parts.join(" at ") || "Date and time pending";
-}
-
-function toneForTrust(trustLevel) {
-  const tone = String(trustLevel || "").toLowerCase();
-  if (tone === "high") {
-    return "success";
-  }
-  if (tone === "medium") {
-    return "info";
-  }
-  if (tone === "low") {
-    return "warning";
-  }
-  return "neutral";
-}
-
-function renderPill(value, tone) {
-  if (!value) {
-    return "";
-  }
-  return `<span class="meta-pill tone-${tone}">${escapeHtml(value)}</span>`;
-}
-
-function reviewStatusOptions(selectedValue) {
-  const options = state.runtime?.review?.allowed_statuses || ["Pending", "Approved", "Rejected", "Needs Edit"];
-  return options
-    .map(
-      (status) =>
-        `<option value="${escapeHtml(status)}" ${status === selectedValue ? "selected" : ""}>${escapeHtml(status)}</option>`
-    )
-    .join("");
-}
-
-function candidateRow(candidate) {
+function reviewRow(row, index) {
   return `
-    <tr>
-      <td class="cell-title">
+    <tr data-review-index="${index}">
+      <td class="cell-title review-event">
         <div class="cell-stack">
-          <strong>${escapeHtml(candidate.label)}</strong>
-          <div class="cell-subtitle">${escapeHtml(candidate.notes || "")}</div>
-        </div>
-      </td>
-      <td><span class="meta-pill">${escapeHtml(candidate.status)}</span></td>
-      <td><span class="meta-pill">${escapeHtml(candidate.priority)}</span></td>
-      <td><span class="meta-pill">${escapeHtml(candidate.source_type)}</span></td>
-      <td>${escapeHtml(candidate.base_url)}</td>
-      <td>${escapeHtml(candidate.seed_url || "")}</td>
-      <td>
-        <div class="tag-list">
-          ${(candidate.geography_tags || []).map((tag) => `<span class="meta-pill">${escapeHtml(tag)}</span>`).join("")}
+          <strong>${escapeHtml(row.event_title || "Untitled event")}</strong>
+          <div class="cell-subtitle">${escapeHtml(row.description || "")}</div>
+          <div class="tag-list">
+            <span class="meta-pill">${escapeHtml(row.record_id)}</span>
+            <span class="meta-pill">${escapeHtml(row.queue_label)}</span>
+          </div>
         </div>
       </td>
       <td>
-        <div class="tag-list">
-          <span class="meta-pill">${escapeHtml(candidate.parser_difficulty || "unknown")}</span>
-          <span class="meta-pill">${escapeHtml(candidate.discovery_shape || "")}</span>
+        <div class="cell-stack">
+          <strong>${escapeHtml(formatDateRange(row))}</strong>
+          <div class="cell-subtitle">${escapeHtml(formatTimeRange(row))}</div>
+        </div>
+      </td>
+      <td>
+        <div class="cell-stack">
+          <strong>${escapeHtml(row.venue_name || "Location pending")}</strong>
+          <div class="cell-subtitle">${escapeHtml(formatLocation(row))}</div>
+        </div>
+      </td>
+      <td>
+        <div class="cell-stack">
+          <strong>${escapeHtml(row.source_name || "Unknown source")}</strong>
+          <div class="cell-subtitle">${escapeHtml(row.source_method)}</div>
+          <div class="review-links">
+            ${row.source_url ? `<a href="${escapeHtml(row.source_url)}" target="_blank" rel="noreferrer">Source</a>` : ""}
+            ${row.event_url ? `<a href="${escapeHtml(row.event_url)}" target="_blank" rel="noreferrer">Event</a>` : ""}
+          </div>
+        </div>
+      </td>
+      <td>
+        <div class="cell-stack">
+          <div class="tag-list">
+            <span class="meta-pill">${escapeHtml(row.trust_level || "unrated")}</span>
+            <span class="meta-pill">${escapeHtml(row.confidence_score ? `Score ${row.confidence_score}` : "Score n/a")}</span>
+          </div>
+          <div class="tag-list">
+            ${row.missing_fields.map((item) => `<span class="meta-pill meta-pill-warn">${escapeHtml(item)}</span>`).join("")}
+            ${row.risk_flags.map((item) => `<span class="meta-pill meta-pill-risk">${escapeHtml(item)}</span>`).join("")}
+          </div>
+        </div>
+      </td>
+      <td class="review-cell">
+        <div class="cell-stack">
+          <select class="table-select review-select" data-review-status>
+            ${reviewStatusOptions(row.review_status)}
+          </select>
+          <label class="review-check">
+            <input type="checkbox" data-review-export ${row.approved_for_export ? "checked" : ""} />
+            <span>Approved for export</span>
+          </label>
+          <textarea class="table-textarea review-notes" data-review-notes placeholder="Reviewer notes">${escapeHtml(row.reviewer_notes || "")}</textarea>
         </div>
       </td>
     </tr>
   `;
+}
+
+function reviewStatusOptions(selectedValue) {
+  const statuses = state.runtime?.review?.allowed_statuses || ["Pending", "Approved", "Rejected", "Needs Edit"];
+  return statuses
+    .map((status) => `<option value="${escapeHtml(status)}" ${status === selectedValue ? "selected" : ""}>${escapeHtml(status)}</option>`)
+    .join("");
+}
+
+function formatDateRange(row) {
+  if (row.end_date && row.end_date !== row.start_date) {
+    return `${row.start_date} to ${row.end_date}`;
+  }
+  return row.start_date || "Date missing";
+}
+
+function formatTimeRange(row) {
+  if (row.start_time && row.end_time) {
+    return `${row.start_time} to ${row.end_time}`;
+  }
+  if (row.start_time) {
+    return row.start_time;
+  }
+  return "Time missing";
+}
+
+function formatLocation(row) {
+  return [row.address, row.city, row.state].filter(Boolean).join(", ") || "Address needs review";
+}
+
+function countReviews() {
+  return state.reviewRows.reduce(
+    (counts, row) => {
+      const status = row.review_status || "Pending";
+      if (status === "Approved") counts.approved += 1;
+      else if (status === "Rejected") counts.rejected += 1;
+      else if (status === "Needs Edit") counts.needsEdit += 1;
+      else counts.pending += 1;
+      return counts;
+    },
+    { pending: 0, approved: 0, rejected: 0, needsEdit: 0 }
+  );
 }
 
 function sourceRow(source, index) {
@@ -630,9 +599,31 @@ function sourceRow(source, index) {
   `;
 }
 
-function cssEscape(value) {
-  if (window.CSS?.escape) {
-    return window.CSS.escape(value);
-  }
-  return String(value).replaceAll('"', '\\"');
+function candidateRow(candidate) {
+  return `
+    <tr>
+      <td class="cell-title">
+        <div class="cell-stack">
+          <strong>${escapeHtml(candidate.label)}</strong>
+          <div class="cell-subtitle">${escapeHtml(candidate.notes || "")}</div>
+        </div>
+      </td>
+      <td><span class="meta-pill">${escapeHtml(candidate.status)}</span></td>
+      <td><span class="meta-pill">${escapeHtml(candidate.priority)}</span></td>
+      <td><span class="meta-pill">${escapeHtml(candidate.source_type)}</span></td>
+      <td>${escapeHtml(candidate.base_url)}</td>
+      <td>${escapeHtml(candidate.seed_url || "")}</td>
+      <td>
+        <div class="tag-list">
+          ${(candidate.geography_tags || []).map((tag) => `<span class="meta-pill">${escapeHtml(tag)}</span>`).join("")}
+        </div>
+      </td>
+      <td>
+        <div class="tag-list">
+          <span class="meta-pill">${escapeHtml(candidate.parser_difficulty || "unknown")}</span>
+          <span class="meta-pill">${escapeHtml(candidate.discovery_shape || "")}</span>
+        </div>
+      </td>
+    </tr>
+  `;
 }

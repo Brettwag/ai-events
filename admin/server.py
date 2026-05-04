@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import sys
 import tomllib
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -19,22 +19,8 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from localist_ingestion.config import load_runtime_config
+from localist_ingestion.ics_export import build_approved_events_ics
 from localist_ingestion.review_queue import GoogleSheetsReviewQueue
-
-
-REVIEW_USER_COLUMNS = [
-    "event_title",
-    "start_date",
-    "start_time",
-    "venue_name",
-    "city",
-    "source_organization",
-    "source_method",
-    "trust_level",
-    "review_status",
-    "approved_for_export",
-    "reviewer_notes",
-]
 
 
 def load_toml(path: Path) -> dict:
@@ -204,86 +190,133 @@ def workflow_status() -> list[dict]:
     ]
 
 
-def load_review_queue_payload() -> dict:
-    runtime = load_runtime_config(CONFIG_ROOT)
-    queue = GoogleSheetsReviewQueue(runtime=runtime, repo_root=REPO_ROOT)
-    rows = [
-        review_row_from_record(record, runtime.allowed_statuses, runtime.default_status)
-        for record in queue.list_records()
-        if record.get("record_type") == "event"
+def review_sheet_specs(runtime: object) -> list[dict[str, str]]:
+    return [
+        {
+            "workflow_id": "daily_phase1",
+            "sheet_name": runtime.review_sheet_name,
+            "label": "Approved Queue",
+        },
+        {
+            "workflow_id": "weekly_source_scout",
+            "sheet_name": runtime.source_scout_sheet_name,
+            "label": "Source Scout Queue",
+        },
+        {
+            "workflow_id": "daily_ai_event_scout",
+            "sheet_name": runtime.ai_event_scout_sheet_name,
+            "label": "AI Event Scout Queue",
+        },
     ]
-    rows.sort(
-        key=lambda row: (
-            row.get("start_date") or "9999-99-99",
-            row.get("start_time") or "99:99",
-            row.get("event_title", "").lower(),
+
+
+def load_review_queue_payload(sort_key: str = "date") -> dict:
+    runtime = load_runtime_config(CONFIG_ROOT)
+    review_rows: list[dict] = []
+    lane_stats: list[dict] = []
+
+    for spec in review_sheet_specs(runtime):
+        queue = GoogleSheetsReviewQueue(runtime=runtime, repo_root=REPO_ROOT, sheet_name=spec["sheet_name"])
+        raw_rows = queue.list_records()
+        event_rows = [row for row in raw_rows if row.get("record_type", "event") == "event"]
+        review_rows.extend(review_row_from_record(row, spec, runtime.allowed_statuses, runtime.default_status) for row in event_rows)
+        lane_stats.append(
+            {
+                "workflow_id": spec["workflow_id"],
+                "sheet_name": spec["sheet_name"],
+                "label": spec["label"],
+                "total_rows": len(raw_rows),
+                "event_rows": len(event_rows),
+            }
         )
-    )
+
+    review_rows.sort(key=review_sorter(sort_key))
     return {
-        "sheet_name": runtime.review_sheet_name,
-        "columns": REVIEW_USER_COLUMNS,
+        "rows": review_rows,
+        "sort_key": sort_key,
+        "sort_options": [
+            {"value": "date", "label": "Date"},
+            {"value": "source", "label": "Source"},
+        ],
+        "lane_stats": lane_stats,
         "allowed_statuses": runtime.allowed_statuses,
-        "rows": rows,
     }
 
 
 def save_review_queue_updates(payload: dict) -> dict:
     runtime = load_runtime_config(CONFIG_ROOT)
     allowed_statuses = set(runtime.allowed_statuses)
-    updates: list[dict] = []
+    updates_by_sheet: dict[str, list[dict]] = {}
+
     for item in payload.get("updates", []):
+        record_id = str(item.get("record_id", "")).strip()
+        sheet_name = str(item.get("sheet_name", "")).strip()
         review_status = str(item.get("review_status") or runtime.default_status)
+        if not record_id or not sheet_name:
+            continue
         if review_status not in allowed_statuses:
             raise ValueError(f"Invalid review status: {review_status}")
-        updates.append(
+        updates_by_sheet.setdefault(sheet_name, []).append(
             {
-                "record_id": str(item.get("record_id", "")).strip(),
+                "record_id": record_id,
                 "review_status": review_status,
                 "approved_for_export": bool(item.get("approved_for_export")),
                 "reviewer_notes": str(item.get("reviewer_notes", "") or ""),
             }
         )
 
-    queue = GoogleSheetsReviewQueue(runtime=runtime, repo_root=REPO_ROOT)
-    result = queue.update_review_records(updates)
-    result["ok"] = True
-    return result
+    updated = 0
+    missing: list[str] = []
+    for sheet_name, updates in updates_by_sheet.items():
+        queue = GoogleSheetsReviewQueue(runtime=runtime, repo_root=REPO_ROOT, sheet_name=sheet_name)
+        result = queue.update_review_records(updates)
+        updated += int(result.get("updated", 0))
+        missing.extend(result.get("missing", []))
+
+    return {"ok": True, "updated": updated, "missing": missing}
 
 
-def review_row_from_record(record: dict, allowed_statuses: list[str], default_status: str) -> dict:
+def approved_events_ics() -> str:
+    runtime = load_runtime_config(CONFIG_ROOT)
+    if not runtime.enable_ics_export:
+        raise RuntimeError("ICS export is disabled in config/runtime.toml.")
+    return build_approved_events_ics(runtime=runtime, repo_root=REPO_ROOT)
+
+
+def review_row_from_record(record: dict, spec: dict[str, str], allowed_statuses: list[str], default_status: str) -> dict:
+    source_name = record.get("source_organization") or record.get("source_domain") or spec["label"]
     return {
         "record_id": record.get("record_id", ""),
+        "record_type": record.get("record_type", ""),
+        "sheet_name": spec["sheet_name"],
+        "workflow_id": spec["workflow_id"],
+        "queue_label": spec["label"],
+        "source_name": source_name,
+        "source_method": record.get("source_method", ""),
+        "source_organization": record.get("source_organization", ""),
+        "source_domain": record.get("source_domain", ""),
+        "source_url": record.get("source_url", ""),
+        "event_url": record.get("event_url", ""),
         "event_title": record.get("event_title", ""),
         "start_date": record.get("start_date", ""),
         "start_time": record.get("start_time", ""),
         "end_date": record.get("end_date", ""),
         "end_time": record.get("end_time", ""),
         "venue_name": record.get("venue_name", ""),
+        "address": record.get("address", ""),
         "city": record.get("city", ""),
         "state": record.get("state", ""),
-        "location_display": build_location_display(record),
-        "source_organization": record.get("source_organization", ""),
-        "source_method": record.get("source_method", ""),
-        "source_domain": record.get("source_domain", ""),
-        "source_url": record.get("source_url", ""),
-        "event_url": record.get("event_url", ""),
         "description": record.get("description", ""),
-        "reason_to_include": record.get("reason_to_include", ""),
-        "missing_fields": split_multivalue_field(record.get("missing_fields", "")),
-        "risk_flags": split_multivalue_field(record.get("risk_flags", "")),
         "trust_level": record.get("trust_level", ""),
         "confidence_score": record.get("confidence_score", ""),
         "status_recommendation": record.get("status_recommendation", ""),
+        "risk_flags": split_multivalue_field(record.get("risk_flags", "")),
+        "missing_fields": split_multivalue_field(record.get("missing_fields", "")),
         "review_status": record.get("review_status") or default_status,
         "approved_for_export": is_truthy(record.get("approved_for_export", "")),
         "reviewer_notes": record.get("reviewer_notes", ""),
         "allowed_statuses": allowed_statuses,
     }
-
-
-def build_location_display(record: dict) -> str:
-    parts = [record.get("venue_name", ""), record.get("city", ""), record.get("state", "")]
-    return ", ".join(part for part in parts if part)
 
 
 def split_multivalue_field(value: str) -> list[str]:
@@ -294,9 +327,25 @@ def is_truthy(value: object) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "y"}
 
 
+def review_sorter(sort_key: str):
+    if sort_key == "source":
+        return lambda row: (
+            row.get("source_name", "").lower(),
+            row.get("start_date") or "9999-99-99",
+            row.get("event_title", "").lower(),
+        )
+    return lambda row: (
+        row.get("start_date") or "9999-99-99",
+        row.get("start_time") or "99:99",
+        row.get("source_name", "").lower(),
+        row.get("event_title", "").lower(),
+    )
+
+
 class AdminHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
         try:
             if parsed.path == "/api/health":
                 self.send_json({"ok": True})
@@ -314,7 +363,11 @@ class AdminHandler(BaseHTTPRequestHandler):
                 self.send_json({"workflows": workflow_status()})
                 return
             if parsed.path == "/api/review-queue":
-                self.send_json(load_review_queue_payload())
+                sort_key = query.get("sort", ["date"])[0]
+                self.send_json(load_review_queue_payload(sort_key=sort_key))
+                return
+            if parsed.path == "/api/approved-events.ics":
+                self.send_ics(approved_events_ics(), filename="approved-events.ics")
                 return
             self.serve_static(parsed.path)
         except RuntimeError as exc:
@@ -368,6 +421,15 @@ class AdminHandler(BaseHTTPRequestHandler):
         data = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def send_ics(self, payload: str, filename: str) -> None:
+        data = payload.encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/calendar; charset=utf-8")
+        self.send_header("Content-Disposition", f'inline; filename="{filename}"')
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)

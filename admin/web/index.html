@@ -21,19 +21,19 @@
         </div>
 
         <div class="sidebar-group">
-          <div class="sidebar-label">Control</div>
+          <div class="sidebar-label">Setup</div>
           <nav class="nav">
             <button class="nav-link active" data-view="inputs">Inputs</button>
-            <button class="nav-link" data-view="review">Review Queue</button>
             <button class="nav-link" data-view="sources">Approved Sources</button>
+            <button class="nav-link" data-view="candidates">Canidate Sources</button>
+            <button class="nav-link" data-view="workflows">Workflows</button>
           </nav>
         </div>
 
         <div class="sidebar-group">
-          <div class="sidebar-label">Scout Output</div>
+          <div class="sidebar-label">Output</div>
           <nav class="nav">
-            <button class="nav-link" data-view="candidates">Candidate Sources</button>
-            <button class="nav-link" data-view="workflows">Workflows</button>
+            <button class="nav-link" data-view="review">Review</button>
           </nav>
         </div>
 
@@ -68,16 +68,30 @@
         </section>
 
         <section class="view" id="view-review">
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Review Queue</h3>
-              <p>Focused moderation view for event approval. The detailed source-of-truth row still lives in Google Sheets.</p>
+          <div class="review-layout">
+            <div class="review-header">
+              <h3>Event Review Queue</h3>
+              <p>A user-facing review table modeled on the spreadsheet queue, focused on approving, rejecting, and editing event candidates.</p>
             </div>
-            <div class="collection-toolbar">
-              <div class="toolbar-note" id="review-sheet-name">Main review queue</div>
-              <button id="refresh-review-queue" class="button">Refresh Queue</button>
+            <div class="review-toolbar">
+              <div class="review-summary-wrap">
+                <div class="review-summary" id="review-summary"></div>
+                <div class="review-lanes" id="review-lanes"></div>
+              </div>
+              <div class="review-toolbar-actions">
+                <label class="toolbar-select">
+                  <span>Sort</span>
+                  <select id="review-sort">
+                    <option value="date">Date</option>
+                    <option value="source">Source</option>
+                  </select>
+                </label>
+                <a class="button" href="/api/approved-events.ics" target="_blank" rel="noreferrer">Open ICS Feed</a>
+                <button id="refresh-review" class="button">Refresh</button>
+                <button id="save-review" class="button button-primary">Save Reviews</button>
+              </div>
             </div>
-            <div id="review-queue-list" class="table-wrap"></div>
+            <div id="review-list" class="review-table-stage"></div>
           </div>
         </section>
 
