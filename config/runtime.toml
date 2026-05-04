@@ -67,7 +67,7 @@ max_events_per_run = 50
 search_region = "Raton, New Mexico"
 search_radius_miles = 100
 minimum_trust_level = "low"
-max_passes = 8
+max_passes = 14
 stop_after_consecutive_empty_passes = 2
 query_focuses = [
   "general community events in Raton and nearby towns",
@@ -76,4 +76,11 @@ query_focuses = [
   "outdoor, rodeo, festival, park, and recreation events",
   "Trinidad, Colorado and southern Colorado events relevant to the pilot geography",
   "candidate source domains and newly discovered official calendars",
+]
+source_type_focuses = [
+  "official city and county calendars",
+  "theaters and performing arts venues",
+  "libraries, museums, and schools",
+  "parks, outdoor recreation, rodeo, and festival organizations",
+  "community nonprofits and tourism organizations",
 ]

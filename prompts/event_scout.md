@@ -17,6 +17,8 @@ Important constraints:
 - If a field is unclear, leave it blank instead of guessing.
 - Prefer official venues, government pages, tourism pages, schools, parks, arts groups, libraries, museums, and trusted community organizations.
 - Avoid low-trust aggregators, spammy listings, ticket resellers with no provenance, and stale archived pages when fresher official sources exist.
+- It is acceptable to use reputable ticketing/event pages such as Humanitix when they clearly point to a real local venue or organization and include concrete event details.
 - Focus on events in the pilot geography and the practical surrounding area.
 - Prioritize events inside the configured lookahead window.
 - Prefer new events that were not already found in earlier passes during the same run.
+- Search both by geography and by source archetypes such as official calendars, venues, tourism groups, nonprofits, parks, schools, and community organizations.

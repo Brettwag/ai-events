@@ -54,6 +54,7 @@ def load_runtime_config(config_dir: Path) -> RuntimeConfig:
             raw["ai_event_scout"]["stop_after_consecutive_empty_passes"]
         ),
         ai_event_scout_query_focuses=list(raw["ai_event_scout"]["query_focuses"]),
+        ai_event_scout_source_type_focuses=list(raw["ai_event_scout"]["source_type_focuses"]),
     )
 
 

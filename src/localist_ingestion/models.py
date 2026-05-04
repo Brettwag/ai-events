@@ -58,6 +58,7 @@ class RuntimeConfig:
     ai_event_scout_max_passes: int
     ai_event_scout_stop_after_consecutive_empty_passes: int
     ai_event_scout_query_focuses: list[str]
+    ai_event_scout_source_type_focuses: list[str]
 
 
 @dataclass(slots=True)

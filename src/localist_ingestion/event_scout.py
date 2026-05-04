@@ -160,10 +160,11 @@ def run_ai_event_scout(
     prompt = prompt_path.read_text(encoding="utf-8")
     approved_domains = sorted({domain_from_url(source.base_url) for source in sources} | set(runtime.approved_domains))
     candidate_domains = load_candidate_domains(repo_root / "config" / "source_candidates.toml")
+    pass_focuses = build_pass_focuses(runtime, approved_domains, candidate_domains)
     collected: list[AIEventScoutCandidate] = []
     seen_keys: set[str] = set()
     empty_passes = 0
-    focuses = runtime.ai_event_scout_query_focuses[: runtime.ai_event_scout_max_passes]
+    focuses = pass_focuses[: runtime.ai_event_scout_max_passes]
 
     for pass_number, focus in enumerate(focuses, start=1):
         remaining = runtime.ai_event_scout_max_events_per_run - len(collected)
@@ -364,3 +365,37 @@ def summarize_found_examples(events: list[AIEventScoutCandidate], limit: int = 1
         for event in events[:limit]
     ]
     return "; ".join(examples)
+
+
+def build_pass_focuses(
+    runtime: RuntimeConfig,
+    approved_domains: list[str],
+    candidate_domains: list[str],
+) -> list[str]:
+    focuses: list[str] = list(runtime.ai_event_scout_query_focuses)
+
+    for geography in runtime.geography:
+        focuses.append(f"events in {geography}")
+        focuses.append(f"official calendars and community events in {geography}")
+
+    for source_type_focus in runtime.ai_event_scout_source_type_focuses:
+        focuses.append(f"{source_type_focus} in {runtime.ai_event_scout_search_region} and surrounding area")
+
+    for domain in approved_domains[:8]:
+        focuses.append(f"direct search on approved domain {domain} for upcoming events")
+
+    for domain in candidate_domains[:8]:
+        focuses.append(f"direct search on candidate domain {domain} for upcoming events")
+
+    return unique_preserve_order(focuses)
+
+
+def unique_preserve_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        ordered.append(value)
+    return ordered
