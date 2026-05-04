@@ -144,6 +144,12 @@ When the local admin server is running with Google Sheets credentials, it also e
 http://127.0.0.1:8765/api/approved-events.ics
 ```
 
+There is also a GitHub Pages workflow at [.github/workflows/deploy_approved_ics_pages.yml](/Users/brettwagner/ai-events/.github/workflows/deploy_approved_ics_pages.yml) that publishes a stable public feed URL:
+
+```text
+https://brettwag.github.io/ai-events/approved-events.ics
+```
+
 ## Current Phase 1 choices
 
 1. Recurring job: GitHub Actions

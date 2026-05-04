@@ -59,6 +59,12 @@ http://127.0.0.1:8765/api/approved-events.ics
 
 You can open that feed directly from the `Review` toolbar.
 
+If the repo has GitHub Pages enabled, the review toolbar also prefers the public Pages feed URL:
+
+```text
+https://brettwag.github.io/ai-events/approved-events.ics
+```
+
 ## Why this shape
 
 This is intentionally local-first:

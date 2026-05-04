@@ -41,6 +41,14 @@ def write_approved_events_ics(runtime: RuntimeConfig, repo_root: Path, output_pa
     return output_path
 
 
+def write_pages_site(runtime: RuntimeConfig, repo_root: Path, output_dir: Path, public_ics_url: str) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    write_approved_events_ics(runtime=runtime, repo_root=repo_root, output_path=output_dir / "approved-events.ics")
+    (output_dir / ".nojekyll").write_text("", encoding="utf-8")
+    (output_dir / "index.html").write_text(build_index_html(runtime=runtime, public_ics_url=public_ics_url), encoding="utf-8")
+    return output_dir
+
+
 def load_approved_events(runtime: RuntimeConfig, repo_root: Path) -> list[ApprovedEventRecord]:
     sheet_names = [
         runtime.review_sheet_name,
@@ -118,6 +126,75 @@ def render_ics_calendar(events: list[ApprovedEventRecord], calendar_name: str, t
     return "\r\n".join(lines) + "\r\n"
 
 
+def build_index_html(runtime: RuntimeConfig, public_ics_url: str) -> str:
+    return f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{html_escape(runtime.name)} ICS Feed</title>
+    <style>
+      body {{
+        margin: 0;
+        font-family: Inter, system-ui, sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }}
+      main {{
+        max-width: 760px;
+        margin: 64px auto;
+        padding: 0 24px;
+      }}
+      .card {{
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 28px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+      }}
+      h1 {{
+        margin: 0 0 8px;
+        font-size: 28px;
+      }}
+      p {{
+        margin: 0 0 18px;
+        line-height: 1.5;
+        color: #475569;
+      }}
+      code {{
+        display: block;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        overflow-x: auto;
+      }}
+      a.button {{
+        display: inline-block;
+        margin-top: 16px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: #2563eb;
+        color: white;
+        text-decoration: none;
+        font-weight: 600;
+      }}
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="card">
+        <h1>{html_escape(runtime.name)} Approved Events Feed</h1>
+        <p>This GitHub Pages site publishes the latest ICS feed built from approved spreadsheet rows.</p>
+        <code>{html_escape(public_ics_url)}</code>
+        <a class="button" href="approved-events.ics">Open approved-events.ics</a>
+      </div>
+    </main>
+  </body>
+</html>
+"""
+
+
 def render_event_lines(event: ApprovedEventRecord, dtstamp: str, time_zone: str) -> list[str]:
     title = event.event_title.strip() or "Untitled event"
     description_parts = [part for part in [event.description.strip(), event.source_url.strip()] if part]
@@ -182,6 +259,15 @@ def escape_ics_text(value: str) -> str:
         .replace("\n", "\\n")
         .replace(";", "\\;")
         .replace(",", "\\,")
+    )
+
+
+def html_escape(value: str) -> str:
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
     )
 
 

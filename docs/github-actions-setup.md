@@ -59,6 +59,17 @@ It currently supports:
 - daily scheduled runs via cron
 - review-sheet initialization when Google secrets are present
 
+For the public ICS feed, the repo also includes:
+
+- `.github/workflows/deploy_approved_ics_pages.yml`
+
+That workflow builds `approved-events.ics` from approved spreadsheet rows and deploys it to GitHub Pages.
+
+Before the public feed works, go to:
+
+1. `GitHub repo` -> `Settings` -> `Pages`
+2. Set `Source` to `GitHub Actions`
+
 ## Step 6: Verify the first run
 
 1. Open the repo in GitHub.
@@ -68,6 +79,18 @@ It currently supports:
 5. Confirm the workflow loads config correctly.
 6. Confirm that the review tab is created and has the expected header row.
 7. After event discovery is added, confirm that the review tab receives rows.
+
+## Step 7: Verify the public ICS feed
+
+1. Open `Actions`
+2. Run `Deploy Approved ICS Feed`
+3. After it succeeds, your feed should be available at:
+
+```text
+https://brettwag.github.io/ai-events/approved-events.ics
+```
+
+The workflow also republishes on a schedule so spreadsheet approvals flow into the public feed without requiring a code change.
 
 ## Recommended next implementation
 

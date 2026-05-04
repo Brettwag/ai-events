@@ -86,7 +86,13 @@
                     <option value="source">Source</option>
                   </select>
                 </label>
-                <a class="button" href="/api/approved-events.ics" target="_blank" rel="noreferrer">Open ICS Feed</a>
+                <div class="feed-copy-group">
+                  <label class="toolbar-select toolbar-select-feed">
+                    <span>ICS feed</span>
+                    <input id="ics-feed-url" class="feed-url-input" type="text" readonly />
+                  </label>
+                  <button id="copy-ics-url" class="button" type="button" aria-label="Copy ICS feed URL">Copy</button>
+                </div>
                 <button id="refresh-review" class="button">Refresh</button>
                 <button id="save-review" class="button button-primary">Save Reviews</button>
               </div>

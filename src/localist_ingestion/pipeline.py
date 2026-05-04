@@ -5,7 +5,7 @@ from datetime import date
 from pathlib import Path
 
 from .config import load_runtime_config, load_sources, load_taxonomy
-from .ics_export import write_approved_events_ics
+from .ics_export import write_approved_events_ics, write_pages_site
 from .review_queue import GoogleSheetsReviewQueue
 
 
@@ -145,6 +145,16 @@ def export_approved_ics(output_path: Path | None = None) -> str:
     return f"Approved events ICS written to {written}"
 
 
+def export_pages_site(output_dir: Path, public_ics_url: str) -> str:
+    root = repo_root()
+    config_dir = root / "config"
+    runtime = load_runtime_config(config_dir)
+    if not runtime.enable_ics_export:
+        return "ICS export is disabled."
+    written = write_pages_site(runtime=runtime, repo_root=root, output_dir=output_dir, public_ics_url=public_ics_url)
+    return f"GitHub Pages site written to {written}"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phase 1 Localist ingestion scaffold utilities.")
     parser.add_argument(
@@ -158,12 +168,17 @@ def parse_args() -> argparse.Namespace:
             "run-source-scout",
             "run-ai-event-scout",
             "export-approved-ics",
+            "export-pages-site",
         ],
         help="Action to perform.",
     )
     parser.add_argument(
         "--output",
         help="Optional output path for ICS export.",
+    )
+    parser.add_argument(
+        "--public-ics-url",
+        help="Public ICS URL to embed in the generated Pages site.",
     )
     return parser.parse_args()
 
@@ -185,6 +200,12 @@ def main() -> None:
     if args.command == "export-approved-ics":
         output_path = Path(args.output).expanduser() if args.output else None
         print(export_approved_ics(output_path=output_path))
+        return
+    if args.command == "export-pages-site":
+        if not args.output or not args.public_ics_url:
+            raise SystemExit("export-pages-site requires --output and --public-ics-url")
+        output_dir = Path(args.output).expanduser()
+        print(export_pages_site(output_dir=output_dir, public_ics_url=args.public_ics_url))
         return
     print(summarize_scaffold())
 

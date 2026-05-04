@@ -6,6 +6,7 @@ const state = {
   reviewRows: [],
   reviewSort: "date",
   reviewLaneStats: [],
+  publicIcsFeedUrl: "",
 };
 
 const runtimeFieldSpec = [
@@ -46,11 +47,13 @@ document.getElementById("review-sort").addEventListener("change", async (event) 
   state.reviewSort = event.target.value;
   await refreshReviewRows();
 });
+document.getElementById("copy-ics-url").addEventListener("click", copyIcsUrl);
 
 bootstrap();
 
 async function bootstrap() {
   await Promise.all([loadRuntime(), loadSources(), loadCandidates(), loadWorkflows()]);
+  setIcsFeedUrl();
   renderRuntime();
   renderSources();
   renderCandidates();
@@ -82,6 +85,8 @@ async function refreshReviewRows({ silent = false } = {}) {
     const payload = await fetchJson(`/api/review-queue?sort=${encodeURIComponent(state.reviewSort)}`);
     state.reviewRows = payload.rows || [];
     state.reviewLaneStats = payload.lane_stats || [];
+    state.publicIcsFeedUrl = payload.public_ics_feed_url || "";
+    setIcsFeedUrl();
     renderReview();
     if (!silent) {
       setStatus("Review refreshed");
@@ -424,6 +429,23 @@ function setStatus(message) {
   setTimeout(() => {
     document.getElementById("save-status").textContent = "Ready";
   }, 2200);
+}
+
+function setIcsFeedUrl() {
+  const input = document.getElementById("ics-feed-url");
+  input.value = state.publicIcsFeedUrl || `${window.location.origin}/api/approved-events.ics`;
+}
+
+async function copyIcsUrl() {
+  const input = document.getElementById("ics-feed-url");
+  input.select();
+  input.setSelectionRange(0, input.value.length);
+  try {
+    await navigator.clipboard.writeText(input.value);
+  } catch {
+    document.execCommand("copy");
+  }
+  setStatus("ICS URL copied");
 }
 
 async function fetchJson(url) {

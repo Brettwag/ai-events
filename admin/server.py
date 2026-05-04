@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tomllib
 from urllib.parse import parse_qs, urlparse
@@ -240,6 +241,7 @@ def load_review_queue_payload(sort_key: str = "date") -> dict:
         ],
         "lane_stats": lane_stats,
         "allowed_statuses": runtime.allowed_statuses,
+        "public_ics_feed_url": public_ics_feed_url(),
     }
 
 
@@ -281,6 +283,39 @@ def approved_events_ics() -> str:
     if not runtime.enable_ics_export:
         raise RuntimeError("ICS export is disabled in config/runtime.toml.")
     return build_approved_events_ics(runtime=runtime, repo_root=REPO_ROOT)
+
+
+def public_ics_feed_url() -> str | None:
+    try:
+        remote_url = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except Exception:
+        return None
+
+    owner_repo = parse_github_owner_repo(remote_url)
+    if not owner_repo:
+        return None
+    owner, repo = owner_repo
+    return f"https://{owner.lower()}.github.io/{repo.lower()}/approved-events.ics"
+
+
+def parse_github_owner_repo(remote_url: str) -> tuple[str, str] | None:
+    cleaned = remote_url.strip().removesuffix(".git")
+    if cleaned.startswith("git@github.com:"):
+        cleaned = cleaned.removeprefix("git@github.com:")
+    elif cleaned.startswith("https://github.com/"):
+        cleaned = cleaned.removeprefix("https://github.com/")
+    else:
+        return None
+    parts = cleaned.split("/")
+    if len(parts) != 2 or not all(parts):
+        return None
+    return parts[0], parts[1]
 
 
 def review_row_from_record(record: dict, spec: dict[str, str], allowed_statuses: list[str], default_status: str) -> dict:
