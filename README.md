@@ -18,6 +18,7 @@ The design bias in this repo is:
 - `prompts/`: editable prompt text for discovery, extraction, and classification
 - `schemas/`: machine-readable review queue schema
 - `src/localist_ingestion/`: starter Python package for orchestration
+- `admin/`: local-first admin app for inputs and source management
 - `docs/`: architecture notes and kickoff questions
 
 ## Recommended Phase 1 boundary
@@ -100,6 +101,29 @@ The AI event scout is a separate daily workflow that:
 - searches more broadly for real upcoming events in the pilot geography
 - writes results to a separate `AI Event Scout Queue` tab
 - is intentionally broader and noisier than the approved-source queue
+
+## Local admin
+
+There is now a local-first admin app for operating the pilot:
+
+- edit runtime inputs
+- edit approved sources
+- inspect candidate sources
+- inspect current workflow lanes
+
+Run it with:
+
+```bash
+python3.11 admin/server.py
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8765
+```
+
+See [docs/local-admin.md](/Users/brettwagner/ai-events/docs/local-admin.md) for details.
 
 ## Current Phase 1 choices
 

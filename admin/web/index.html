@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Events Admin</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="eyebrow">Local Admin</div>
+          <h1>AI Events</h1>
+          <p>Inputs, sources, and workflow control for the Raton pilot.</p>
+        </div>
+        <nav class="nav">
+          <button class="nav-link active" data-view="inputs">Inputs</button>
+          <button class="nav-link" data-view="sources">Approved Sources</button>
+          <button class="nav-link" data-view="candidates">Candidate Sources</button>
+          <button class="nav-link" data-view="workflows">Workflows</button>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <div class="eyebrow">Mode</div>
+            <h2 id="view-title">Inputs</h2>
+          </div>
+          <div class="status-pill" id="save-status">Ready</div>
+        </header>
+
+        <section class="view active" id="view-inputs">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Core Inputs</h3>
+              <p>Control the pilot geography, review window, and scout behavior without editing files by hand.</p>
+            </div>
+            <form id="runtime-form" class="form-grid"></form>
+            <div class="panel-actions">
+              <button id="save-runtime" class="button button-primary">Save Inputs</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-sources">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Approved Sources</h3>
+              <p>These feed the trusted daily discovery workflow.</p>
+            </div>
+            <div id="sources-list" class="stack"></div>
+            <div class="panel-actions">
+              <button id="add-source" class="button">Add Source</button>
+              <button id="save-sources" class="button button-primary">Save Sources</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-candidates">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Candidate Sources</h3>
+              <p>Scout-discovered sources that can later be promoted into the approved list.</p>
+            </div>
+            <div id="candidate-list" class="stack cards"></div>
+          </div>
+        </section>
+
+        <section class="view" id="view-workflows">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Workflow Lanes</h3>
+              <p>Your current local and GitHub-driven lanes, with separate trust levels and sheet tabs.</p>
+            </div>
+            <div id="workflow-list" class="stack cards"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+  </html>
