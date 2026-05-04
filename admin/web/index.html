@@ -21,19 +21,19 @@
         </div>
 
         <div class="sidebar-group">
-          <div class="sidebar-label">Setup</div>
+          <div class="sidebar-label">Output</div>
           <nav class="nav">
-            <button class="nav-link active" data-view="inputs">Inputs</button>
-            <button class="nav-link" data-view="sources">Approved Sources</button>
-            <button class="nav-link" data-view="candidates">Canidate Sources</button>
-            <button class="nav-link" data-view="workflows">Workflows</button>
+            <button class="nav-link active" data-view="review">Review</button>
           </nav>
         </div>
 
         <div class="sidebar-group">
-          <div class="sidebar-label">Output</div>
+          <div class="sidebar-label">Setup</div>
           <nav class="nav">
-            <button class="nav-link" data-view="review">Review</button>
+            <button class="nav-link" data-view="inputs">Inputs</button>
+            <button class="nav-link" data-view="sources">Approved Sources</button>
+            <button class="nav-link" data-view="candidates">Canidate Sources</button>
+            <button class="nav-link" data-view="workflows">Workflows</button>
           </nav>
         </div>
 
@@ -46,7 +46,7 @@
         <header class="topbar">
           <div class="topbar-heading">
             <div class="eyebrow">Workspace</div>
-            <h2 id="view-title">Inputs</h2>
+            <h2 id="view-title">Review</h2>
           </div>
           <div class="topbar-actions">
             <div class="topbar-chip">Local mode</div>
@@ -54,7 +54,7 @@
           </div>
         </header>
 
-        <section class="view active" id="view-inputs">
+        <section class="view" id="view-inputs">
           <div class="panel">
             <div class="panel-header">
               <h3>Core Inputs</h3>
@@ -67,7 +67,7 @@
           </div>
         </section>
 
-        <section class="view" id="view-review">
+        <section class="view active" id="view-review">
           <div class="review-layout">
             <div class="review-header">
               <h3>Event Review Queue</h3>
@@ -78,26 +78,23 @@
                 <div class="review-summary" id="review-summary"></div>
                 <div class="review-lanes" id="review-lanes"></div>
               </div>
-              <div class="review-toolbar-actions">
-                <label class="toolbar-select">
-                  <span>Sort</span>
-                  <select id="review-sort">
-                    <option value="date">Date</option>
-                    <option value="source">Source</option>
-                  </select>
-                </label>
-                <div class="feed-copy-group">
-                  <label class="toolbar-select toolbar-select-feed">
-                    <span>ICS feed</span>
-                    <input id="ics-feed-url" class="feed-url-input" type="text" readonly />
-                  </label>
-                  <button id="copy-ics-url" class="button" type="button" aria-label="Copy ICS feed URL">Copy</button>
+              <div class="review-toolbar-row">
+                <div class="toolbar-meta" id="review-sort-indicator">Sorted by date</div>
+                <div class="review-toolbar-actions">
+                  <div class="feed-copy-group">
+                    <label class="toolbar-select toolbar-select-feed">
+                      <span>ICS feed</span>
+                      <input id="ics-feed-url" class="feed-url-input" type="text" readonly />
+                    </label>
+                    <button id="copy-ics-url" class="button" type="button" aria-label="Copy ICS feed URL">Copy</button>
+                  </div>
+                  <button id="refresh-review" class="button">Refresh</button>
+                  <button id="save-review" class="button button-primary">Save Reviews</button>
                 </div>
-                <button id="refresh-review" class="button">Refresh</button>
-                <button id="save-review" class="button button-primary">Save Reviews</button>
               </div>
             </div>
             <div id="review-list" class="review-table-stage"></div>
+            <div id="review-column-menu" class="column-menu" hidden></div>
           </div>
         </section>
 
