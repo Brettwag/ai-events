@@ -23,7 +23,12 @@ def _import_google_clients() -> tuple[object, object]:
 def load_google_service_account_info() -> dict:
     raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
     if not raw:
-        raise RuntimeError("Missing GOOGLE_SERVICE_ACCOUNT_JSON environment variable.")
+        path = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON_PATH", "").strip()
+        if not path:
+            raise RuntimeError(
+                "Missing GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_JSON_PATH environment variable."
+            )
+        return json.loads(Path(path).read_text(encoding="utf-8"))
     try:
         return json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -91,6 +96,77 @@ class GoogleSheetsReviewQueue:
             ).execute()
 
         return {"updated": updates, "inserted": inserts}
+
+    def list_records(self) -> list[dict[str, str]]:
+        self.ensure_sheet_ready()
+        response = self.service.spreadsheets().values().get(
+            spreadsheetId=self.spreadsheet_id,
+            range=f"{self.sheet_name}!A:{self.last_column}",
+        ).execute()
+        values = response.get("values", [])
+        if len(values) <= 1:
+            return []
+
+        header = values[0]
+        rows = values[1:]
+        records: list[dict[str, str]] = []
+        for row_number, row in enumerate(rows, start=2):
+            record = {column: row[index] if index < len(row) else "" for index, column in enumerate(header)}
+            record["row_number"] = str(row_number)
+            records.append(record)
+        return records
+
+    def update_review_records(self, updates: list[dict[str, Any]]) -> dict[str, Any]:
+        self.ensure_sheet_ready()
+        existing = self._existing_rows_by_record_id()
+        header_index = {name: index for index, name in enumerate(self.columns)}
+        requests: list[dict[str, Any]] = []
+        updated_record_ids: list[str] = []
+        missing_record_ids: list[str] = []
+
+        for update in updates:
+            record_id = str(update.get("record_id", "")).strip()
+            if not record_id:
+                continue
+            existing_row = existing.get(record_id)
+            if not existing_row:
+                missing_record_ids.append(record_id)
+                continue
+
+            row_number = int(existing_row["row_number"])
+            for field_name in ("review_status", "reviewer_notes", "approved_for_export"):
+                if field_name not in update:
+                    continue
+                column_number = header_index.get(field_name)
+                if column_number is None:
+                    continue
+                value = update[field_name]
+                if field_name == "approved_for_export":
+                    value = "TRUE" if _is_truthy(value) else "FALSE"
+                else:
+                    value = str(value or "")
+                column = column_letter(column_number + 1)
+                requests.append(
+                    {
+                        "range": f"{self.sheet_name}!{column}{row_number}",
+                        "values": [[value]],
+                    }
+                )
+            updated_record_ids.append(record_id)
+
+        if requests:
+            self.service.spreadsheets().values().batchUpdate(
+                spreadsheetId=self.spreadsheet_id,
+                body={
+                    "valueInputOption": "RAW",
+                    "data": requests,
+                },
+            ).execute()
+
+        return {
+            "updated": len(updated_record_ids),
+            "missing": missing_record_ids,
+        }
 
     def _sheet_names(self) -> set[str]:
         metadata = self.service.spreadsheets().get(spreadsheetId=self.spreadsheet_id).execute()
@@ -178,3 +254,9 @@ class GoogleSheetsReviewQueue:
         if index is None or index >= len(row):
             return ""
         return row[index]
+
+
+def _is_truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "y"}

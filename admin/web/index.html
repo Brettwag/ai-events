@@ -24,6 +24,7 @@
           <div class="sidebar-label">Control</div>
           <nav class="nav">
             <button class="nav-link active" data-view="inputs">Inputs</button>
+            <button class="nav-link" data-view="review">Review Queue</button>
             <button class="nav-link" data-view="sources">Approved Sources</button>
           </nav>
         </div>
@@ -66,17 +67,31 @@
           </div>
         </section>
 
+        <section class="view" id="view-review">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Review Queue</h3>
+              <p>Focused moderation view for event approval. The detailed source-of-truth row still lives in Google Sheets.</p>
+            </div>
+            <div class="collection-toolbar">
+              <div class="toolbar-note" id="review-sheet-name">Main review queue</div>
+              <button id="refresh-review-queue" class="button">Refresh Queue</button>
+            </div>
+            <div id="review-queue-list" class="table-wrap"></div>
+          </div>
+        </section>
+
         <section class="view" id="view-sources">
           <div class="panel">
             <div class="panel-header">
               <h3>Approved Sources</h3>
               <p>These feed the trusted daily discovery workflow and should stay relatively high-signal.</p>
             </div>
-            <div id="sources-list" class="stack"></div>
-            <div class="panel-actions">
+            <div class="collection-toolbar">
               <button id="add-source" class="button">Add Source</button>
               <button id="save-sources" class="button button-primary">Save Sources</button>
             </div>
+            <div id="sources-list" class="table-wrap"></div>
           </div>
         </section>
 
@@ -86,7 +101,7 @@
               <h3>Candidate Sources</h3>
               <p>Scout-discovered sources that can later be promoted into the approved list after human review.</p>
             </div>
-            <div id="candidate-list" class="stack cards"></div>
+            <div id="candidate-list" class="table-wrap"></div>
           </div>
         </section>
 

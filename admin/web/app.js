@@ -3,6 +3,9 @@ const state = {
   sources: [],
   candidates: [],
   workflows: [],
+  reviewQueue: [],
+  reviewQueueSheetName: "",
+  reviewQueueError: "",
 };
 
 const runtimeFieldSpec = [
@@ -37,6 +40,7 @@ document.getElementById("add-source").addEventListener("click", () => {
   state.sources.push(blankSource());
   renderSources();
 });
+document.getElementById("refresh-review-queue").addEventListener("click", () => refreshReviewQueue());
 
 bootstrap();
 
@@ -46,6 +50,7 @@ async function bootstrap() {
   renderSources();
   renderCandidates();
   renderWorkflows();
+  await refreshReviewQueue({ silent: true });
 }
 
 async function loadRuntime() {
@@ -67,6 +72,27 @@ async function loadWorkflows() {
   state.workflows = payload.workflows;
 }
 
+async function refreshReviewQueue({ silent = false } = {}) {
+  try {
+    const payload = await fetchJson("/api/review-queue");
+    state.reviewQueue = payload.rows || [];
+    state.reviewQueueSheetName = payload.sheet_name || "";
+    state.reviewQueueError = "";
+    renderReviewQueue();
+    if (!silent) {
+      setStatus("Review queue refreshed");
+    }
+  } catch (error) {
+    state.reviewQueue = [];
+    state.reviewQueueSheetName = "";
+    state.reviewQueueError = error.message;
+    renderReviewQueue();
+    if (!silent) {
+      setStatus("Review queue unavailable");
+    }
+  }
+}
+
 function activateView(view) {
   document.querySelectorAll(".nav-link").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === view);
@@ -76,6 +102,7 @@ function activateView(view) {
   });
   document.getElementById("view-title").textContent = {
     inputs: "Inputs",
+    review: "Review Queue",
     sources: "Approved Sources",
     candidates: "Candidate Sources",
     workflows: "Workflows",
@@ -124,6 +151,61 @@ function renderRuntime() {
   });
 }
 
+function renderReviewQueue() {
+  const container = document.getElementById("review-queue-list");
+  const sheetName = document.getElementById("review-sheet-name");
+  sheetName.textContent = state.reviewQueueSheetName
+    ? `Backed by Google Sheet: ${state.reviewQueueSheetName}`
+    : "Backed by Google Sheet once local credentials are available";
+
+  container.innerHTML = "";
+  if (state.reviewQueueError) {
+    container.innerHTML = `<div class="empty error-block">${escapeHtml(state.reviewQueueError)}</div>`;
+    return;
+  }
+  if (!state.reviewQueue.length) {
+    container.innerHTML = `<div class="empty">No event rows are in the review queue yet.</div>`;
+    return;
+  }
+
+  const table = document.createElement("table");
+  table.className = "data-table review-table";
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Event</th>
+        <th>When</th>
+        <th>Location</th>
+        <th>Source</th>
+        <th>Quality</th>
+        <th>Review</th>
+        <th>Notes</th>
+        <th>Links</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${state.reviewQueue.map((row) => reviewRow(row)).join("")}
+    </tbody>
+  `;
+  container.appendChild(table);
+
+  container.querySelectorAll("[data-review-save]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await saveReviewRow(button.dataset.reviewSave);
+    });
+  });
+
+  container.querySelectorAll("[data-quick-status]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await applyQuickReview(
+        button.dataset.recordId,
+        button.dataset.quickStatus,
+        button.dataset.quickExport === "true"
+      );
+    });
+  });
+}
+
 function renderSources() {
   const container = document.getElementById("sources-list");
   container.innerHTML = "";
@@ -132,31 +214,27 @@ function renderSources() {
     return;
   }
 
-  state.sources.forEach((source, index) => {
-    const card = document.createElement("div");
-    card.className = "source-card";
-    card.innerHTML = `
-      <div class="meta-row">
-        <span class="meta-pill">${source.enabled ? "Enabled" : "Disabled"}</span>
-        <span class="meta-pill">${escapeHtml(source.type || "website")}</span>
-        <span class="meta-pill">${escapeHtml(source.discovery_mode || "listing_page")}</span>
-      </div>
-      <div class="field"><label>Label</label><input data-source-index="${index}" data-key="label" value="${escapeHtml(source.label || "")}" /></div>
-      <div class="source-grid">
-        ${sourceInput(index, "id", source.id)}
-        ${sourceInput(index, "base_url", source.base_url)}
-        ${sourceInput(index, "source_organization", source.source_organization)}
-        ${sourceInput(index, "type", source.type)}
-        ${sourceInput(index, "discovery_mode", source.discovery_mode)}
-        ${sourceInput(index, "enabled", String(Boolean(source.enabled)), "select")}
-      </div>
-      <div class="field full"><label>Seed URLs</label><textarea data-source-index="${index}" data-key="seed_urls">${(source.seed_urls || []).join("\n")}</textarea></div>
-      <div class="field full"><label>Geography Tags</label><textarea data-source-index="${index}" data-key="geography_tags">${(source.geography_tags || []).join("\n")}</textarea></div>
-      <div class="field full"><label>Notes</label><textarea data-source-index="${index}" data-key="notes">${escapeHtml(source.notes || "")}</textarea></div>
-      <div class="panel-actions"><button class="button" data-remove-source="${index}">Remove</button></div>
-    `;
-    container.appendChild(card);
-  });
+  const table = document.createElement("table");
+  table.className = "data-table";
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Source</th>
+        <th>Status</th>
+        <th>Organization</th>
+        <th>Base URL</th>
+        <th>Seed URLs</th>
+        <th>Mode</th>
+        <th>Geography</th>
+        <th>Notes</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${state.sources.map((source, index) => sourceRow(source, index)).join("")}
+    </tbody>
+  `;
+  container.appendChild(table);
 
   container.querySelectorAll("[data-remove-source]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -173,24 +251,26 @@ function renderCandidates() {
     container.innerHTML = `<div class="empty">No candidate sources yet.</div>`;
     return;
   }
-  state.candidates.forEach((candidate) => {
-    const card = document.createElement("div");
-    card.className = "candidate-card";
-    card.innerHTML = `
-      <h3>${escapeHtml(candidate.label)}</h3>
-      <p>${escapeHtml(candidate.notes || "")}</p>
-      <div class="meta-row">
-        <span class="meta-pill">${escapeHtml(candidate.status)}</span>
-        <span class="meta-pill">${escapeHtml(candidate.priority)}</span>
-        <span class="meta-pill">${escapeHtml(candidate.source_type)}</span>
-        <span class="meta-pill">${escapeHtml((candidate.geography_tags || []).join(", "))}</span>
-      </div>
-      <div class="meta-row">
-        <span class="meta-pill">${escapeHtml(candidate.base_url)}</span>
-      </div>
-    `;
-    container.appendChild(card);
-  });
+  const table = document.createElement("table");
+  table.className = "data-table";
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Source</th>
+        <th>Status</th>
+        <th>Priority</th>
+        <th>Type</th>
+        <th>Base URL</th>
+        <th>Seed URL</th>
+        <th>Geography</th>
+        <th>Parser</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${state.candidates.map((candidate) => candidateRow(candidate)).join("")}
+    </tbody>
+  `;
+  container.appendChild(table);
 }
 
 function renderWorkflows() {
@@ -220,7 +300,10 @@ async function saveRuntime() {
     if (kind === "number") {
       value = Number(value);
     } else if (kind === "list") {
-      value = value.split("\n").map((item) => item.trim()).filter(Boolean);
+      value = value
+        .split("\n")
+        .map((item) => item.trim())
+        .filter(Boolean);
     }
     setPath(payload, input.dataset.path, value);
   });
@@ -237,7 +320,10 @@ async function saveSources() {
     if (input.dataset.key === "enabled") {
       value = value === "true";
     } else if (input.dataset.key === "seed_urls" || input.dataset.key === "geography_tags") {
-      value = value.split("\n").map((item) => item.trim()).filter(Boolean);
+      value = value
+        .split("\n")
+        .map((item) => item.trim())
+        .filter(Boolean);
     }
     acc[index][input.dataset.key] = value;
     return acc;
@@ -247,24 +333,127 @@ async function saveSources() {
   setStatus("Sources saved");
 }
 
+async function saveReviewRow(recordId) {
+  const row = document.querySelector(`[data-review-row="${cssEscape(recordId)}"]`);
+  if (!row) {
+    return;
+  }
+  const payload = {
+    updates: [
+      {
+        record_id: recordId,
+        review_status: row.querySelector("[data-review-status]").value,
+        approved_for_export: row.querySelector("[data-review-export]").checked,
+        reviewer_notes: row.querySelector("[data-review-notes]").value,
+      },
+    ],
+  };
+
+  const button = row.querySelector("[data-review-save]");
+  const previousLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Saving...";
+  try {
+    await postJson("/api/review-queue", payload);
+    setStatus("Review saved");
+    await refreshReviewQueue({ silent: true });
+  } finally {
+    button.disabled = false;
+    button.textContent = previousLabel;
+  }
+}
+
+async function applyQuickReview(recordId, status, approvedForExport) {
+  const row = document.querySelector(`[data-review-row="${cssEscape(recordId)}"]`);
+  if (!row) {
+    return;
+  }
+  row.querySelector("[data-review-status]").value = status;
+  row.querySelector("[data-review-export]").checked = approvedForExport;
+  await saveReviewRow(recordId);
+}
+
+function reviewRow(row) {
+  return `
+    <tr data-review-row="${escapeHtml(row.record_id)}">
+      <td class="cell-title review-event-cell">
+        <div class="cell-stack">
+          <strong>${escapeHtml(row.event_title || "Untitled event")}</strong>
+          <div class="cell-subtitle">${escapeHtml(formatWhen(row))}</div>
+          <div class="tag-list compact">
+            ${renderPill(row.source_method, "info")}
+            ${renderPill(row.status_recommendation, "neutral")}
+          </div>
+          ${row.description ? `<div class="review-description">${escapeHtml(truncate(row.description, 180))}</div>` : ""}
+        </div>
+      </td>
+      <td>
+        <div class="cell-stack">
+          <strong>${escapeHtml(row.start_date || "Missing date")}</strong>
+          <div class="cell-subtitle">${escapeHtml(row.start_time || "Time missing")}</div>
+        </div>
+      </td>
+      <td>
+        <div class="cell-stack">
+          <strong>${escapeHtml(row.venue_name || "Location pending")}</strong>
+          <div class="cell-subtitle">${escapeHtml(row.location_display || row.city || "Needs location review")}</div>
+        </div>
+      </td>
+      <td>
+        <div class="cell-stack">
+          <strong>${escapeHtml(row.source_organization || row.source_domain || "Unknown source")}</strong>
+          <div class="cell-subtitle">${escapeHtml(row.source_domain || "")}</div>
+        </div>
+      </td>
+      <td>
+        <div class="cell-stack">
+          <div class="tag-list compact">
+            ${renderPill(row.trust_level || "unrated", toneForTrust(row.trust_level))}
+            ${renderPill(row.confidence_score ? `score ${row.confidence_score}` : "score n/a", "neutral")}
+          </div>
+          <div class="tag-list compact">
+            ${row.missing_fields.map((item) => renderPill(item, "warning")).join("")}
+            ${row.risk_flags.map((item) => renderPill(item, "danger")).join("")}
+          </div>
+        </div>
+      </td>
+      <td class="review-controls">
+        <select class="table-select" data-review-status>
+          ${reviewStatusOptions(row.review_status)}
+        </select>
+        <label class="checkbox-row">
+          <input type="checkbox" data-review-export ${row.approved_for_export ? "checked" : ""} />
+          <span>Approved for export</span>
+        </label>
+        <div class="row-actions">
+          <button class="button button-small" data-quick-status="Approved" data-quick-export="true" data-record-id="${escapeHtml(row.record_id)}">Approve</button>
+          <button class="button button-small" data-quick-status="Rejected" data-quick-export="false" data-record-id="${escapeHtml(row.record_id)}">Reject</button>
+          <button class="button button-primary button-small" data-review-save="${escapeHtml(row.record_id)}">Save</button>
+        </div>
+      </td>
+      <td>
+        <textarea class="table-textarea review-notes" data-review-notes placeholder="Add reviewer notes...">${escapeHtml(row.reviewer_notes || "")}</textarea>
+      </td>
+      <td>
+        <div class="cell-stack review-links">
+          ${row.event_url ? `<a href="${escapeHtml(row.event_url)}" target="_blank" rel="noreferrer">Event page</a>` : ""}
+          ${row.source_url ? `<a href="${escapeHtml(row.source_url)}" target="_blank" rel="noreferrer">Source page</a>` : ""}
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
 function sourceInput(index, key, value, type = "text") {
   if (type === "select") {
     return `
-      <div class="field">
-        <label>${prettyLabel(key)}</label>
-        <select data-source-index="${index}" data-key="${key}">
+      <select class="table-select" data-source-index="${index}" data-key="${key}">
           <option value="true" ${value === "true" ? "selected" : ""}>Enabled</option>
           <option value="false" ${value !== "true" ? "selected" : ""}>Disabled</option>
-        </select>
-      </div>
+      </select>
     `;
   }
-  return `
-    <div class="field">
-      <label>${prettyLabel(key)}</label>
-      <input data-source-index="${index}" data-key="${key}" value="${escapeHtml(value || "")}" />
-    </div>
-  `;
+  return `<input class="table-input" data-source-index="${index}" data-key="${key}" value="${escapeHtml(value || "")}" />`;
 }
 
 function blankSource() {
@@ -302,10 +491,11 @@ function setStatus(message) {
 
 async function fetchJson(url) {
   const response = await fetch(url);
+  const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(`${url} failed`);
+    throw new Error(payload?.error || `${url} failed`);
   }
-  return response.json();
+  return payload;
 }
 
 async function postJson(url, payload) {
@@ -314,14 +504,11 @@ async function postJson(url, payload) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+  const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(`${url} failed`);
+    throw new Error(data?.error || `${url} failed`);
   }
-  return response.json();
-}
-
-function prettyLabel(key) {
-  return key.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return data;
 }
 
 function escapeHtml(value) {
@@ -330,4 +517,122 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function truncate(value, maxLength) {
+  const text = String(value || "");
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength - 1)}…`;
+}
+
+function formatWhen(row) {
+  const parts = [row.start_date, row.start_time].filter(Boolean);
+  return parts.join(" at ") || "Date and time pending";
+}
+
+function toneForTrust(trustLevel) {
+  const tone = String(trustLevel || "").toLowerCase();
+  if (tone === "high") {
+    return "success";
+  }
+  if (tone === "medium") {
+    return "info";
+  }
+  if (tone === "low") {
+    return "warning";
+  }
+  return "neutral";
+}
+
+function renderPill(value, tone) {
+  if (!value) {
+    return "";
+  }
+  return `<span class="meta-pill tone-${tone}">${escapeHtml(value)}</span>`;
+}
+
+function reviewStatusOptions(selectedValue) {
+  const options = state.runtime?.review?.allowed_statuses || ["Pending", "Approved", "Rejected", "Needs Edit"];
+  return options
+    .map(
+      (status) =>
+        `<option value="${escapeHtml(status)}" ${status === selectedValue ? "selected" : ""}>${escapeHtml(status)}</option>`
+    )
+    .join("");
+}
+
+function candidateRow(candidate) {
+  return `
+    <tr>
+      <td class="cell-title">
+        <div class="cell-stack">
+          <strong>${escapeHtml(candidate.label)}</strong>
+          <div class="cell-subtitle">${escapeHtml(candidate.notes || "")}</div>
+        </div>
+      </td>
+      <td><span class="meta-pill">${escapeHtml(candidate.status)}</span></td>
+      <td><span class="meta-pill">${escapeHtml(candidate.priority)}</span></td>
+      <td><span class="meta-pill">${escapeHtml(candidate.source_type)}</span></td>
+      <td>${escapeHtml(candidate.base_url)}</td>
+      <td>${escapeHtml(candidate.seed_url || "")}</td>
+      <td>
+        <div class="tag-list">
+          ${(candidate.geography_tags || []).map((tag) => `<span class="meta-pill">${escapeHtml(tag)}</span>`).join("")}
+        </div>
+      </td>
+      <td>
+        <div class="tag-list">
+          <span class="meta-pill">${escapeHtml(candidate.parser_difficulty || "unknown")}</span>
+          <span class="meta-pill">${escapeHtml(candidate.discovery_shape || "")}</span>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function sourceRow(source, index) {
+  return `
+    <tr>
+      <td class="cell-title">
+        <div class="cell-stack">
+          <strong>${escapeHtml(source.label || "Untitled source")}</strong>
+          ${sourceInput(index, "label", source.label)}
+          <div class="cell-subtitle">ID: ${escapeHtml(source.id || "unset")}</div>
+          ${sourceInput(index, "id", source.id)}
+        </div>
+      </td>
+      <td>${sourceInput(index, "enabled", String(Boolean(source.enabled)), "select")}</td>
+      <td>${sourceInput(index, "source_organization", source.source_organization)}</td>
+      <td>${sourceInput(index, "base_url", source.base_url)}</td>
+      <td>
+        <textarea class="table-textarea" data-source-index="${index}" data-key="seed_urls">${(source.seed_urls || []).join("\n")}</textarea>
+      </td>
+      <td>
+        <div class="cell-stack">
+          ${sourceInput(index, "type", source.type)}
+          ${sourceInput(index, "discovery_mode", source.discovery_mode)}
+        </div>
+      </td>
+      <td>
+        <textarea class="table-textarea" data-source-index="${index}" data-key="geography_tags">${(source.geography_tags || []).join("\n")}</textarea>
+      </td>
+      <td>
+        <textarea class="table-textarea" data-source-index="${index}" data-key="notes">${escapeHtml(source.notes || "")}</textarea>
+      </td>
+      <td>
+        <div class="row-actions">
+          <button class="button" data-remove-source="${index}">Remove</button>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function cssEscape(value) {
+  if (window.CSS?.escape) {
+    return window.CSS.escape(value);
+  }
+  return String(value).replaceAll('"', '\\"');
 }

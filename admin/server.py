@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import sys
 import tomllib
 from urllib.parse import urlparse
 
@@ -12,6 +13,28 @@ from urllib.parse import urlparse
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = REPO_ROOT / "admin" / "web"
 CONFIG_ROOT = REPO_ROOT / "config"
+SRC_ROOT = REPO_ROOT / "src"
+
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from localist_ingestion.config import load_runtime_config
+from localist_ingestion.review_queue import GoogleSheetsReviewQueue
+
+
+REVIEW_USER_COLUMNS = [
+    "event_title",
+    "start_date",
+    "start_time",
+    "venue_name",
+    "city",
+    "source_organization",
+    "source_method",
+    "trust_level",
+    "review_status",
+    "approved_for_export",
+    "reviewer_notes",
+]
 
 
 def load_toml(path: Path) -> dict:
@@ -158,60 +181,169 @@ def escape_toml_string(value: str) -> str:
 
 
 def workflow_status() -> list[dict]:
+    runtime = load_runtime()
     return [
         {
             "id": "daily_phase1",
             "name": "Daily Approved-Source Discovery",
-            "sheet": "Phase 1 Review Queue",
+            "sheet": runtime["project"]["review_sheet_name"],
             "purpose": "Higher-trust daily event discovery from approved sources.",
         },
         {
             "id": "weekly_source_scout",
             "name": "Weekly Source Scout",
-            "sheet": "Source Scout Queue",
+            "sheet": runtime["project"]["source_scout_sheet_name"],
             "purpose": "AI-assisted search for new source websites and calendars.",
         },
         {
             "id": "daily_ai_event_scout",
             "name": "Daily AI Event Scout",
-            "sheet": "AI Event Scout Queue",
+            "sheet": runtime["project"]["ai_event_scout_sheet_name"],
             "purpose": "Broader, higher-recall search for actual event candidates.",
         },
     ]
 
 
+def load_review_queue_payload() -> dict:
+    runtime = load_runtime_config(CONFIG_ROOT)
+    queue = GoogleSheetsReviewQueue(runtime=runtime, repo_root=REPO_ROOT)
+    rows = [
+        review_row_from_record(record, runtime.allowed_statuses, runtime.default_status)
+        for record in queue.list_records()
+        if record.get("record_type") == "event"
+    ]
+    rows.sort(
+        key=lambda row: (
+            row.get("start_date") or "9999-99-99",
+            row.get("start_time") or "99:99",
+            row.get("event_title", "").lower(),
+        )
+    )
+    return {
+        "sheet_name": runtime.review_sheet_name,
+        "columns": REVIEW_USER_COLUMNS,
+        "allowed_statuses": runtime.allowed_statuses,
+        "rows": rows,
+    }
+
+
+def save_review_queue_updates(payload: dict) -> dict:
+    runtime = load_runtime_config(CONFIG_ROOT)
+    allowed_statuses = set(runtime.allowed_statuses)
+    updates: list[dict] = []
+    for item in payload.get("updates", []):
+        review_status = str(item.get("review_status") or runtime.default_status)
+        if review_status not in allowed_statuses:
+            raise ValueError(f"Invalid review status: {review_status}")
+        updates.append(
+            {
+                "record_id": str(item.get("record_id", "")).strip(),
+                "review_status": review_status,
+                "approved_for_export": bool(item.get("approved_for_export")),
+                "reviewer_notes": str(item.get("reviewer_notes", "") or ""),
+            }
+        )
+
+    queue = GoogleSheetsReviewQueue(runtime=runtime, repo_root=REPO_ROOT)
+    result = queue.update_review_records(updates)
+    result["ok"] = True
+    return result
+
+
+def review_row_from_record(record: dict, allowed_statuses: list[str], default_status: str) -> dict:
+    return {
+        "record_id": record.get("record_id", ""),
+        "event_title": record.get("event_title", ""),
+        "start_date": record.get("start_date", ""),
+        "start_time": record.get("start_time", ""),
+        "end_date": record.get("end_date", ""),
+        "end_time": record.get("end_time", ""),
+        "venue_name": record.get("venue_name", ""),
+        "city": record.get("city", ""),
+        "state": record.get("state", ""),
+        "location_display": build_location_display(record),
+        "source_organization": record.get("source_organization", ""),
+        "source_method": record.get("source_method", ""),
+        "source_domain": record.get("source_domain", ""),
+        "source_url": record.get("source_url", ""),
+        "event_url": record.get("event_url", ""),
+        "description": record.get("description", ""),
+        "reason_to_include": record.get("reason_to_include", ""),
+        "missing_fields": split_multivalue_field(record.get("missing_fields", "")),
+        "risk_flags": split_multivalue_field(record.get("risk_flags", "")),
+        "trust_level": record.get("trust_level", ""),
+        "confidence_score": record.get("confidence_score", ""),
+        "status_recommendation": record.get("status_recommendation", ""),
+        "review_status": record.get("review_status") or default_status,
+        "approved_for_export": is_truthy(record.get("approved_for_export", "")),
+        "reviewer_notes": record.get("reviewer_notes", ""),
+        "allowed_statuses": allowed_statuses,
+    }
+
+
+def build_location_display(record: dict) -> str:
+    parts = [record.get("venue_name", ""), record.get("city", ""), record.get("state", "")]
+    return ", ".join(part for part in parts if part)
+
+
+def split_multivalue_field(value: str) -> list[str]:
+    return [item.strip() for item in str(value or "").split(";") if item.strip()]
+
+
+def is_truthy(value: object) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y"}
+
+
 class AdminHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
-        if parsed.path == "/api/health":
-            self.send_json({"ok": True})
-            return
-        if parsed.path == "/api/runtime":
-            self.send_json(load_runtime())
-            return
-        if parsed.path == "/api/sources":
-            self.send_json({"sources": load_sources()})
-            return
-        if parsed.path == "/api/source-candidates":
-            self.send_json({"candidates": load_source_candidates()})
-            return
-        if parsed.path == "/api/workflows":
-            self.send_json({"workflows": workflow_status()})
-            return
-        self.serve_static(parsed.path)
+        try:
+            if parsed.path == "/api/health":
+                self.send_json({"ok": True})
+                return
+            if parsed.path == "/api/runtime":
+                self.send_json(load_runtime())
+                return
+            if parsed.path == "/api/sources":
+                self.send_json({"sources": load_sources()})
+                return
+            if parsed.path == "/api/source-candidates":
+                self.send_json({"candidates": load_source_candidates()})
+                return
+            if parsed.path == "/api/workflows":
+                self.send_json({"workflows": workflow_status()})
+                return
+            if parsed.path == "/api/review-queue":
+                self.send_json(load_review_queue_payload())
+                return
+            self.serve_static(parsed.path)
+        except RuntimeError as exc:
+            self.send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
+        except ValueError as exc:
+            self.send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
-        body = self.read_json_body()
-        if parsed.path == "/api/runtime":
-            save_runtime(body)
-            self.send_json({"ok": True})
-            return
-        if parsed.path == "/api/sources":
-            save_sources(body.get("sources", []))
-            self.send_json({"ok": True})
-            return
-        self.send_error(HTTPStatus.NOT_FOUND, "Endpoint not found")
+        try:
+            body = self.read_json_body()
+            if parsed.path == "/api/runtime":
+                save_runtime(body)
+                self.send_json({"ok": True})
+                return
+            if parsed.path == "/api/sources":
+                save_sources(body.get("sources", []))
+                self.send_json({"ok": True})
+                return
+            if parsed.path == "/api/review-queue":
+                self.send_json(save_review_queue_updates(body))
+                return
+            self.send_error(HTTPStatus.NOT_FOUND, "Endpoint not found")
+        except json.JSONDecodeError:
+            self.send_json({"ok": False, "error": "Invalid JSON payload."}, status=HTTPStatus.BAD_REQUEST)
+        except RuntimeError as exc:
+            self.send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
+        except ValueError as exc:
+            self.send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
 
     def read_json_body(self) -> dict:
         content_length = int(self.headers.get("Content-Length", "0"))
@@ -232,7 +364,7 @@ class AdminHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(file_path.read_bytes())
 
-    def send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
+    def send_json(self, payload: object, status: HTTPStatus = HTTPStatus.OK) -> None:
         data = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
