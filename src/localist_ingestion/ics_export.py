@@ -247,9 +247,36 @@ def parse_time(value: str) -> time | None:
     cleaned = value.strip()
     if not cleaned:
         return None
-    if len(cleaned) == 5:
-        cleaned = f"{cleaned}:00"
-    return time.fromisoformat(cleaned)
+
+    normalized = (
+        cleaned.lower()
+        .replace(".", "")
+        .replace("a m", "am")
+        .replace("p m", "pm")
+    )
+
+    # Fast path for ISO-like times already in 24-hour format.
+    try:
+        if len(normalized) == 5:
+            normalized = f"{normalized}:00"
+        return time.fromisoformat(normalized)
+    except ValueError:
+        pass
+
+    for pattern in ("%I:%M %p", "%I:%M%p", "%I %p", "%I%p"):
+        try:
+            return datetime.strptime(normalized.upper(), pattern).time()
+        except ValueError:
+            continue
+
+    special_cases = {
+        "noon": time(12, 0),
+        "midnight": time(0, 0),
+    }
+    if normalized in special_cases:
+        return special_cases[normalized]
+
+    raise ValueError(f"Unsupported time format: {value!r}")
 
 
 def escape_ics_text(value: str) -> str:
