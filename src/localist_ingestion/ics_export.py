@@ -27,6 +27,10 @@ class ApprovedEventRecord:
     event_url: str
     source_url: str
     source_name: str
+    source_method: str
+    source_type: str
+    source_sector: str
+    target_sector: str
     duplicate_key: str
 
 
@@ -83,6 +87,10 @@ def load_approved_events(runtime: RuntimeConfig, repo_root: Path) -> list[Approv
                     event_url=record.get("event_url", ""),
                     source_url=record.get("source_url", ""),
                     source_name=record.get("source_organization", "") or record.get("source_domain", ""),
+                    source_method=record.get("source_method", ""),
+                    source_type=record.get("source_type", ""),
+                    source_sector=record.get("source_sector", ""),
+                    target_sector=record.get("target_sector", ""),
                     duplicate_key=record.get("duplicate_key", ""),
                 )
             )
@@ -240,6 +248,9 @@ def render_event_lines(event: ApprovedEventRecord, dtstamp: str, time_zone: str)
         lines.append(f"DESCRIPTION:{escape_ics_text(description)}")
     if location:
         lines.append(f"LOCATION:{escape_ics_text(location)}")
+    categories = render_categories(event)
+    if categories:
+        lines.append(f"CATEGORIES:{categories}")
     if url:
         lines.append(f"URL:{escape_ics_text(url)}")
 
@@ -311,6 +322,50 @@ def escape_ics_text(value: str) -> str:
         .replace(";", "\\;")
         .replace(",", "\\,")
     )
+
+
+def render_categories(event: ApprovedEventRecord) -> str:
+    candidates = [
+        event.source_sector,
+        event.target_sector,
+        event.source_type,
+        category_from_source_method(event.source_method),
+    ]
+    categories: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        normalized = normalize_category(candidate)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        categories.append(normalized)
+
+    if not categories:
+        categories.append("General")
+
+    return ",".join(escape_category_value(category) for category in categories)
+
+
+def category_from_source_method(source_method: str) -> str:
+    mapping = {
+        "approved_parser": "Approved Source",
+        "ai_event_scout": "AI Event Scout",
+        "ai_source_scout": "AI Source Scout",
+    }
+    return mapping.get(source_method.strip().lower(), source_method)
+
+
+def normalize_category(value: str) -> str:
+    cleaned = " ".join(str(value or "").replace("_", " ").replace("-", " ").split()).strip()
+    if not cleaned:
+        return ""
+    if cleaned.lower() in {"unknown", "n/a", "none"}:
+        return ""
+    return cleaned.title()
+
+
+def escape_category_value(value: str) -> str:
+    return value.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
 
 
 def html_escape(value: str) -> str:
