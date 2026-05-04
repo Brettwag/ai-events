@@ -251,7 +251,9 @@ def render_event_lines(event: ApprovedEventRecord, dtstamp: str, time_zone: str)
             end_dt = datetime.combine(end_date or start_date, end_time, tzinfo=tz)
             if end_dt <= start_dt:
                 end_dt = start_dt + timedelta(hours=2)
-            lines.append(f"DTEND;TZID={time_zone}:{end_dt.strftime('%Y%m%dT%H%M%S')}")
+        else:
+            end_dt = start_dt + timedelta(hours=2)
+        lines.append(f"DTEND;TZID={time_zone}:{end_dt.strftime('%Y%m%dT%H%M%S')}")
     else:
         lines.append(f"DTSTART;VALUE=DATE:{start_date.strftime('%Y%m%d')}")
         exclusive_end = (end_date or start_date) + timedelta(days=1)
