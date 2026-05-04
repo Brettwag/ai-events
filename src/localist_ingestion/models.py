@@ -55,6 +55,9 @@ class RuntimeConfig:
     ai_event_scout_search_region: str
     ai_event_scout_search_radius_miles: int
     ai_event_scout_minimum_trust_level: str
+    ai_event_scout_max_passes: int
+    ai_event_scout_stop_after_consecutive_empty_passes: int
+    ai_event_scout_query_focuses: list[str]
 
 
 @dataclass(slots=True)

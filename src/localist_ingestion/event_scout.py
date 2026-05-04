@@ -138,6 +138,17 @@ class AIEventScoutCandidate:
             "promote_to_main_queue": "",
         }
 
+    @property
+    def dedupe_key(self) -> str:
+        return "|".join(
+            [
+                self.event_title.strip().lower(),
+                self.start_date.strip(),
+                self.source_domain.strip().lower(),
+                self.venue_name.strip().lower(),
+            ]
+        )
+
 
 def run_ai_event_scout(
     *,
@@ -149,6 +160,57 @@ def run_ai_event_scout(
     prompt = prompt_path.read_text(encoding="utf-8")
     approved_domains = sorted({domain_from_url(source.base_url) for source in sources} | set(runtime.approved_domains))
     candidate_domains = load_candidate_domains(repo_root / "config" / "source_candidates.toml")
+    collected: list[AIEventScoutCandidate] = []
+    seen_keys: set[str] = set()
+    empty_passes = 0
+    focuses = runtime.ai_event_scout_query_focuses[: runtime.ai_event_scout_max_passes]
+
+    for pass_number, focus in enumerate(focuses, start=1):
+        remaining = runtime.ai_event_scout_max_events_per_run - len(collected)
+        if remaining <= 0:
+            break
+        raw_events = run_single_event_scout_pass(
+            runtime=runtime,
+            prompt=prompt,
+            approved_domains=approved_domains,
+            candidate_domains=candidate_domains,
+            focus=focus,
+            pass_number=pass_number,
+            remaining=remaining,
+            already_found=collected,
+        )
+        parsed = parse_events(raw_events, runtime)
+        new_count = 0
+        for candidate in parsed:
+            if candidate.dedupe_key in seen_keys:
+                continue
+            seen_keys.add(candidate.dedupe_key)
+            collected.append(candidate)
+            new_count += 1
+            if len(collected) >= runtime.ai_event_scout_max_events_per_run:
+                break
+
+        if new_count == 0:
+            empty_passes += 1
+        else:
+            empty_passes = 0
+        if empty_passes >= runtime.ai_event_scout_stop_after_consecutive_empty_passes:
+            break
+
+    return collected[: runtime.ai_event_scout_max_events_per_run]
+
+
+def run_single_event_scout_pass(
+    *,
+    runtime: RuntimeConfig,
+    prompt: str,
+    approved_domains: list[str],
+    candidate_domains: list[str],
+    focus: str,
+    pass_number: int,
+    remaining: int,
+    already_found: list[AIEventScoutCandidate],
+) -> list[dict]:
     payload = {
         "model": runtime.ai_event_scout_model,
         "reasoning": {"effort": runtime.ai_event_scout_reasoning_effort},
@@ -175,7 +237,15 @@ def run_ai_event_scout(
                 "content": [
                     {
                         "type": "input_text",
-                        "text": build_event_scout_request(runtime, approved_domains, candidate_domains),
+                        "text": build_event_scout_request(
+                            runtime=runtime,
+                            approved_domains=approved_domains,
+                            candidate_domains=candidate_domains,
+                            focus=focus,
+                            pass_number=pass_number,
+                            remaining=remaining,
+                            already_found=already_found,
+                        ),
                     }
                 ],
             },
@@ -192,24 +262,38 @@ def run_ai_event_scout(
     response = create_response(payload)
     refusal = first_refusal(response)
     if refusal:
-        raise RuntimeError(f"AI event scout refused the request: {refusal}")
+        raise RuntimeError(f"AI event scout refused pass {pass_number}: {refusal}")
     text = first_output_text(response)
     if not text:
-        raise RuntimeError("AI event scout returned no structured text.")
+        return []
     raw = json.loads(text)
-    return parse_events(raw.get("events", []), runtime)
+    return list(raw.get("events", []))
 
 
-def build_event_scout_request(runtime: RuntimeConfig, approved_domains: list[str], candidate_domains: list[str]) -> str:
+def build_event_scout_request(
+    *,
+    runtime: RuntimeConfig,
+    approved_domains: list[str],
+    candidate_domains: list[str],
+    focus: str,
+    pass_number: int,
+    remaining: int,
+    already_found: list[AIEventScoutCandidate],
+) -> str:
     candidate_domains_text = ", ".join(candidate_domains[:20]) if candidate_domains else "none"
+    approved_domains_text = ", ".join(approved_domains) if approved_domains else "none"
+    found_examples = summarize_found_examples(already_found)
     return (
-        f"Find up to {runtime.ai_event_scout_max_events_per_run} real upcoming events for "
+        f"Pass {pass_number}: find up to {remaining} additional real upcoming events for "
         f"{runtime.ai_event_scout_search_region} and the surrounding {runtime.ai_event_scout_search_radius_miles} mile area. "
         f"Only include events whose start date is between today and {runtime.lookahead_days} days from today. "
-        f"Prefer events from these already-known source domains when useful: {', '.join(approved_domains)}. "
+        f"Use this thematic search focus: {focus}. "
+        f"Prefer events from these already-known source domains when useful: {approved_domains_text}. "
         f"Also consider these candidate domains when they appear relevant: {candidate_domains_text}. "
         "Search broadly beyond those domains if you find trustworthy official event pages. "
-        "Return as many legitimate events as possible while preserving source provenance."
+        "Avoid returning events already found in earlier passes of this same run. "
+        f"Already found examples: {found_examples}. "
+        "Return as many additional legitimate events as possible while preserving source provenance."
     )
 
 
@@ -270,3 +354,13 @@ def parse_events(raw_events: list[dict], runtime: RuntimeConfig) -> list[AIEvent
         if len(parsed) >= runtime.ai_event_scout_max_events_per_run:
             break
     return parsed
+
+
+def summarize_found_examples(events: list[AIEventScoutCandidate], limit: int = 12) -> str:
+    if not events:
+        return "none yet"
+    examples = [
+        f"{event.event_title} on {event.start_date} from {event.source_domain}"
+        for event in events[:limit]
+    ]
+    return "; ".join(examples)

@@ -63,7 +63,17 @@ approved_domains = [
 enabled = true
 model = "gpt-5.4-mini"
 reasoning_effort = "low"
-max_events_per_run = 25
+max_events_per_run = 50
 search_region = "Raton, New Mexico"
 search_radius_miles = 100
-minimum_trust_level = "medium"
+minimum_trust_level = "low"
+max_passes = 8
+stop_after_consecutive_empty_passes = 2
+query_focuses = [
+  "general community events in Raton and nearby towns",
+  "arts, music, theater, exhibits, performances",
+  "government, civic, library, museum, and school events",
+  "outdoor, rodeo, festival, park, and recreation events",
+  "Trinidad, Colorado and southern Colorado events relevant to the pilot geography",
+  "candidate source domains and newly discovered official calendars",
+]

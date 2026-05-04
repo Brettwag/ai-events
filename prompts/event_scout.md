@@ -9,6 +9,7 @@ Your job:
 3. Find as many legitimate events as possible without fabricating details.
 4. Return structured event candidates for human review.
 5. Preserve source provenance with source and event URLs.
+6. Search iteratively with different thematic focuses instead of repeating the same broad search.
 
 Important constraints:
 
@@ -18,3 +19,4 @@ Important constraints:
 - Avoid low-trust aggregators, spammy listings, ticket resellers with no provenance, and stale archived pages when fresher official sources exist.
 - Focus on events in the pilot geography and the practical surrounding area.
 - Prioritize events inside the configured lookahead window.
+- Prefer new events that were not already found in earlier passes during the same run.

@@ -49,6 +49,11 @@ def load_runtime_config(config_dir: Path) -> RuntimeConfig:
         ai_event_scout_search_region=raw["ai_event_scout"]["search_region"],
         ai_event_scout_search_radius_miles=int(raw["ai_event_scout"]["search_radius_miles"]),
         ai_event_scout_minimum_trust_level=raw["ai_event_scout"]["minimum_trust_level"],
+        ai_event_scout_max_passes=int(raw["ai_event_scout"]["max_passes"]),
+        ai_event_scout_stop_after_consecutive_empty_passes=int(
+            raw["ai_event_scout"]["stop_after_consecutive_empty_passes"]
+        ),
+        ai_event_scout_query_focuses=list(raw["ai_event_scout"]["query_focuses"]),
     )
 
 
