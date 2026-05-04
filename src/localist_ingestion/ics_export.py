@@ -32,6 +32,7 @@ class ApprovedEventRecord:
 
 def build_approved_events_ics(runtime: RuntimeConfig, repo_root: Path) -> str:
     events = dedupe_events(load_approved_events(runtime=runtime, repo_root=repo_root))
+    events = filter_future_events(events=events, time_zone=runtime.time_zone)
     return render_ics_calendar(events=events, calendar_name=f"{runtime.name} Approved Events", time_zone=runtime.time_zone)
 
 
@@ -105,6 +106,27 @@ def dedupe_events(events: Iterable[ApprovedEventRecord]) -> list[ApprovedEventRe
         seen.add(key)
         deduped.append(event)
     return deduped
+
+
+def filter_future_events(events: Iterable[ApprovedEventRecord], time_zone: str) -> list[ApprovedEventRecord]:
+    tz = ZoneInfo(time_zone)
+    now = datetime.now(tz)
+    today = now.date()
+    upcoming: list[ApprovedEventRecord] = []
+
+    for event in events:
+        start_date = parse_date(event.start_date)
+        start_time = parse_time(event.start_time)
+        if start_time is None:
+            if start_date >= today:
+                upcoming.append(event)
+            continue
+
+        start_dt = datetime.combine(start_date, start_time, tzinfo=tz)
+        if start_dt >= now:
+            upcoming.append(event)
+
+    return upcoming
 
 
 def render_ics_calendar(events: list[ApprovedEventRecord], calendar_name: str, time_zone: str) -> str:
