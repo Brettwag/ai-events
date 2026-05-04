@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from urllib.parse import urlparse
 
 
 @dataclass(slots=True)
@@ -73,6 +74,7 @@ class EventCandidate:
     state: str = ""
     description: str = ""
     source_organization: str = ""
+    source_method: str = "approved_parser"
     source_sector: str = "Unknown"
     target_sector: str = "Unknown"
     visibility: str = "Unknown"
@@ -85,13 +87,19 @@ class EventCandidate:
     approved_for_export: bool = False
 
     def to_sheet_record(self, run_date: str) -> dict[str, str]:
+        source_domain = _domain_from_url(self.source_url or self.event_url)
         return {
-            "event_id": self.event_id,
+            "record_id": self.event_id,
+            "record_type": "event",
+            "source_method": self.source_method,
             "run_date": run_date,
             "source_id": self.source_id,
             "source_organization": self.source_organization,
+            "source_domain": source_domain,
             "source_url": self.source_url,
             "event_url": self.event_url,
+            "base_url": "",
+            "seed_url": "",
             "event_title": self.event_title,
             "start_date": self.start_date,
             "start_time": self.start_time,
@@ -102,14 +110,34 @@ class EventCandidate:
             "city": self.city,
             "state": self.state,
             "description": self.description,
+            "geography_tags": "",
+            "source_type": "",
             "source_sector": self.source_sector,
             "target_sector": self.target_sector,
             "visibility": self.visibility,
+            "trust_level": "",
             "confidence_score": f"{self.confidence_score:.2f}" if self.confidence_score else "",
+            "event_density": "",
+            "parser_difficulty": "",
+            "reason_to_include": "",
+            "evidence": "",
             "risk_flags": "; ".join(self.risk_flags),
             "missing_fields": "; ".join(self.missing_fields),
             "duplicate_key": self.duplicate_key,
-            "review_status": self.review_status,
+            "status_recommendation": "",
+            "review_status": self.review_status or "Pending",
             "reviewer_notes": self.reviewer_notes,
             "approved_for_export": "TRUE" if self.approved_for_export else "FALSE",
+            "approved_source_id": "",
+            "promote_to_main_queue": "",
         }
+
+
+def _domain_from_url(url: str) -> str:
+    if not url:
+        return ""
+    parsed = urlparse(url)
+    if parsed.netloc:
+        return parsed.netloc.lower()
+    cleaned = url.replace("https://", "").replace("http://", "").strip().rstrip("/")
+    return cleaned.split("/", 1)[0].lower()

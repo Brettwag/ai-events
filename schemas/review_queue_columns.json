@@ -1,9 +1,14 @@
 {
   "columns": [
-    "event_id",
+    "record_id",
+    "record_type",
+    "source_method",
     "run_date",
     "source_id",
+    "base_url",
+    "seed_url",
     "source_organization",
+    "source_domain",
     "source_url",
     "event_url",
     "event_title",
@@ -16,16 +21,25 @@
     "city",
     "state",
     "description",
+    "geography_tags",
+    "source_type",
     "source_sector",
     "target_sector",
     "visibility",
+    "trust_level",
     "confidence_score",
+    "event_density",
+    "parser_difficulty",
+    "reason_to_include",
+    "evidence",
     "risk_flags",
     "missing_fields",
     "duplicate_key",
+    "status_recommendation",
     "review_status",
     "reviewer_notes",
-    "approved_for_export"
+    "approved_for_export",
+    "approved_source_id",
+    "promote_to_main_queue"
   ]
 }
-

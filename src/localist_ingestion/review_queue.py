@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any
 
-from .models import EventCandidate, RuntimeConfig
-from .schema import load_review_queue_columns
+from .models import RuntimeConfig
+from .schema import column_letter, load_review_queue_columns
 
 
 def _import_google_clients() -> tuple[object, object]:
@@ -46,6 +47,7 @@ class GoogleSheetsReviewQueue:
         self.spreadsheet_id = load_spreadsheet_id()
         self.sheet_name = runtime.review_sheet_name
         self.columns = load_review_queue_columns(repo_root)
+        self.last_column = column_letter(len(self.columns))
 
     def ensure_sheet_ready(self) -> None:
         sheet_names = self._sheet_names()
@@ -53,22 +55,24 @@ class GoogleSheetsReviewQueue:
             self._create_sheet(self.sheet_name)
         self._ensure_header()
 
-    def upsert_candidates(self, candidates: list[EventCandidate], run_date: str) -> dict[str, int]:
+    def upsert_candidates(self, candidates: list[Any], run_date: str) -> dict[str, int]:
         self.ensure_sheet_ready()
-        existing = self._existing_rows_by_event_id()
+        existing = self._existing_rows_by_record_id()
         updates = 0
         inserts = 0
         append_rows: list[list[str]] = []
 
         for candidate in candidates:
+            record = candidate.to_sheet_record(run_date)
+            record_id = record.get("record_id", "")
             row_values = self._record_to_row(
-                self._merge_existing_state(candidate.to_sheet_record(run_date), existing.get(candidate.event_id))
+                self._merge_existing_state(record, existing.get(record_id))
             )
-            existing_row_number = existing.get(candidate.event_id, {}).get("row_number")
+            existing_row_number = existing.get(record_id, {}).get("row_number")
             if existing_row_number:
                 self.service.spreadsheets().values().update(
                     spreadsheetId=self.spreadsheet_id,
-                    range=f"{self.sheet_name}!A{existing_row_number}:Z{existing_row_number}",
+                    range=f"{self.sheet_name}!A{existing_row_number}:{self.last_column}{existing_row_number}",
                     valueInputOption="RAW",
                     body={"values": [row_values]},
                 ).execute()
@@ -80,7 +84,7 @@ class GoogleSheetsReviewQueue:
         if append_rows:
             self.service.spreadsheets().values().append(
                 spreadsheetId=self.spreadsheet_id,
-                range=f"{self.sheet_name}!A:Z",
+                range=f"{self.sheet_name}!A:{self.last_column}",
                 valueInputOption="RAW",
                 insertDataOption="INSERT_ROWS",
                 body={"values": append_rows},
@@ -116,10 +120,10 @@ class GoogleSheetsReviewQueue:
                 body={"values": [self.columns]},
             ).execute()
 
-    def _existing_rows_by_event_id(self) -> dict[str, dict]:
+    def _existing_rows_by_record_id(self) -> dict[str, dict]:
         response = self.service.spreadsheets().values().get(
             spreadsheetId=self.spreadsheet_id,
-            range=f"{self.sheet_name}!A:Z",
+            range=f"{self.sheet_name}!A:{self.last_column}",
         ).execute()
         values = response.get("values", [])
         if len(values) <= 1:
@@ -128,22 +132,24 @@ class GoogleSheetsReviewQueue:
         header = values[0]
         rows = values[1:]
         header_index = {name: index for index, name in enumerate(header)}
-        event_id_index = header_index.get("event_id")
-        if event_id_index is None:
+        record_id_index = header_index.get("record_id")
+        if record_id_index is None:
             return {}
 
         existing: dict[str, dict] = {}
         for offset, row in enumerate(rows, start=2):
-            if event_id_index >= len(row):
+            if record_id_index >= len(row):
                 continue
-            event_id = row[event_id_index].strip()
-            if not event_id:
+            record_id = row[record_id_index].strip()
+            if not record_id:
                 continue
-            existing[event_id] = {
+            existing[record_id] = {
                 "row_number": offset,
                 "review_status": self._value_at(row, header_index, "review_status"),
                 "reviewer_notes": self._value_at(row, header_index, "reviewer_notes"),
                 "approved_for_export": self._value_at(row, header_index, "approved_for_export"),
+                "approved_source_id": self._value_at(row, header_index, "approved_source_id"),
+                "promote_to_main_queue": self._value_at(row, header_index, "promote_to_main_queue"),
             }
         return existing
 
@@ -157,6 +163,10 @@ class GoogleSheetsReviewQueue:
             record["reviewer_notes"] = existing["reviewer_notes"]
         if existing.get("approved_for_export"):
             record["approved_for_export"] = existing["approved_for_export"]
+        if existing.get("approved_source_id"):
+            record["approved_source_id"] = existing["approved_source_id"]
+        if existing.get("promote_to_main_queue"):
+            record["promote_to_main_queue"] = existing["promote_to_main_queue"]
         return record
 
     def _record_to_row(self, record: dict[str, str]) -> list[str]:
@@ -168,4 +178,3 @@ class GoogleSheetsReviewQueue:
         if index is None or index >= len(row):
             return ""
         return row[index]
-
