@@ -9,33 +9,55 @@
   <body>
     <div class="app-shell">
       <aside class="sidebar">
-        <div class="brand">
-          <div class="eyebrow">Local Admin</div>
-          <h1>AI Events</h1>
-          <p>Inputs, sources, and workflow control for the Raton pilot.</p>
+        <div class="workspace-switcher">
+          <div class="workspace-badge">A</div>
+          <div>
+            <div class="workspace-name">AI Events</div>
+            <div class="workspace-subtitle">Raton Pilot Workspace</div>
+          </div>
         </div>
-        <nav class="nav">
-          <button class="nav-link active" data-view="inputs">Inputs</button>
-          <button class="nav-link" data-view="sources">Approved Sources</button>
-          <button class="nav-link" data-view="candidates">Candidate Sources</button>
-          <button class="nav-link" data-view="workflows">Workflows</button>
-        </nav>
+        <div class="sidebar-tools">
+          <div class="sidebar-search">Quick actions</div>
+        </div>
+
+        <div class="sidebar-group">
+          <div class="sidebar-label">Control</div>
+          <nav class="nav">
+            <button class="nav-link active" data-view="inputs">Inputs</button>
+            <button class="nav-link" data-view="sources">Approved Sources</button>
+          </nav>
+        </div>
+
+        <div class="sidebar-group">
+          <div class="sidebar-label">Scout Output</div>
+          <nav class="nav">
+            <button class="nav-link" data-view="candidates">Candidate Sources</button>
+            <button class="nav-link" data-view="workflows">Workflows</button>
+          </nav>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-note">Local-first admin surface for tuning sources, queues, and scout settings.</div>
+        </div>
       </aside>
 
       <main class="main">
         <header class="topbar">
-          <div>
-            <div class="eyebrow">Mode</div>
+          <div class="topbar-heading">
+            <div class="eyebrow">Workspace</div>
             <h2 id="view-title">Inputs</h2>
           </div>
-          <div class="status-pill" id="save-status">Ready</div>
+          <div class="topbar-actions">
+            <div class="topbar-chip">Local mode</div>
+            <div class="status-pill" id="save-status">Ready</div>
+          </div>
         </header>
 
         <section class="view active" id="view-inputs">
           <div class="panel">
             <div class="panel-header">
               <h3>Core Inputs</h3>
-              <p>Control the pilot geography, review window, and scout behavior without editing files by hand.</p>
+              <p>Control pilot geography, review windows, and scout behavior without touching config files by hand.</p>
             </div>
             <form id="runtime-form" class="form-grid"></form>
             <div class="panel-actions">
@@ -48,7 +70,7 @@
           <div class="panel">
             <div class="panel-header">
               <h3>Approved Sources</h3>
-              <p>These feed the trusted daily discovery workflow.</p>
+              <p>These feed the trusted daily discovery workflow and should stay relatively high-signal.</p>
             </div>
             <div id="sources-list" class="stack"></div>
             <div class="panel-actions">
@@ -62,7 +84,7 @@
           <div class="panel">
             <div class="panel-header">
               <h3>Candidate Sources</h3>
-              <p>Scout-discovered sources that can later be promoted into the approved list.</p>
+              <p>Scout-discovered sources that can later be promoted into the approved list after human review.</p>
             </div>
             <div id="candidate-list" class="stack cards"></div>
           </div>
@@ -72,7 +94,7 @@
           <div class="panel">
             <div class="panel-header">
               <h3>Workflow Lanes</h3>
-              <p>Your current local and GitHub-driven lanes, with separate trust levels and sheet tabs.</p>
+              <p>Your current operating lanes, each with a distinct trust profile and output tab.</p>
             </div>
             <div id="workflow-list" class="stack cards"></div>
           </div>

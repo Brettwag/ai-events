@@ -136,6 +136,11 @@ function renderSources() {
     const card = document.createElement("div");
     card.className = "source-card";
     card.innerHTML = `
+      <div class="meta-row">
+        <span class="meta-pill">${source.enabled ? "Enabled" : "Disabled"}</span>
+        <span class="meta-pill">${escapeHtml(source.type || "website")}</span>
+        <span class="meta-pill">${escapeHtml(source.discovery_mode || "listing_page")}</span>
+      </div>
       <div class="field"><label>Label</label><input data-source-index="${index}" data-key="label" value="${escapeHtml(source.label || "")}" /></div>
       <div class="source-grid">
         ${sourceInput(index, "id", source.id)}
@@ -178,6 +183,7 @@ function renderCandidates() {
         <span class="meta-pill">${escapeHtml(candidate.status)}</span>
         <span class="meta-pill">${escapeHtml(candidate.priority)}</span>
         <span class="meta-pill">${escapeHtml(candidate.source_type)}</span>
+        <span class="meta-pill">${escapeHtml((candidate.geography_tags || []).join(", "))}</span>
       </div>
       <div class="meta-row">
         <span class="meta-pill">${escapeHtml(candidate.base_url)}</span>
@@ -199,6 +205,7 @@ function renderWorkflows() {
       <div class="meta-row">
         <span class="meta-pill">${escapeHtml(workflow.id)}</span>
         <span class="meta-pill">${escapeHtml(workflow.sheet)}</span>
+        <span class="meta-pill">Active lane</span>
       </div>
     `;
     container.appendChild(card);
