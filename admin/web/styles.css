@@ -650,6 +650,10 @@ body {
   line-height: 1.2;
 }
 
+.review-table tbody td strong {
+  font-weight: 500;
+}
+
 .data-table tbody tr:last-child td {
   border-bottom: 0;
 }
@@ -665,7 +669,7 @@ body {
 .cell-title strong {
   display: block;
   font-size: 0.86rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .cell-subtitle {
@@ -768,7 +772,7 @@ body {
   background: #f3f4f6;
   color: #4b5563;
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .review-status-pill,
@@ -891,7 +895,7 @@ body {
   background: transparent;
   border-color: transparent;
   color: inherit;
-  font-weight: 600;
+  font-weight: 500;
   border-radius: 999px;
   min-width: 0;
   width: 100%;
@@ -906,6 +910,7 @@ body {
 
 .review-helper-text {
   max-width: 160px;
+  font-weight: 500;
 }
 
 .review-links {
@@ -917,7 +922,7 @@ body {
   color: var(--accent-dark);
   text-decoration: none;
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .review-links a:hover {
